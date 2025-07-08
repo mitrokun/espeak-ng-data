@@ -1,0 +1,60 @@
+    "ru_RU-maria-medium": {
+        "key": "ru_RU-maria-medium",
+        "name": "maria",
+        "language": {
+            "code": "ru_RU",
+            "family": "ru",
+            "region": "RU",
+            "name_native": "Русский",
+            "name_english": "Russian",
+            "country_english": "Russia"
+        },
+        "quality": "medium",
+        "num_speakers": 1,
+        "speaker_id_map": {},
+        "files": {
+            "ru_RU-maria-medium.onnx": {
+                "size_bytes": 63516050,
+                "md5_digest": "003b08d2d4f9feedb0365fa8e7028bbb"
+            },
+            "ru_RU-maria-medium.onnx.json": {
+                "size_bytes": 4834,
+                "md5_digest": "e920fa98c726b554320e356d5d9012c5"
+            },
+            "MODEL_CARD": {
+                "size_bytes": 271,
+                "md5_digest": "397e67453b4ea5a95642673d0debb5ba"
+            }
+        },
+        "aliases": []
+    },
+    "ru_RU-vladimir-medium": {
+        "key": "ru_RU-vladimir-medium",
+        "name": "Vladimir",
+        "language": {
+            "code": "ru_RU",
+            "family": "ru",
+            "region": "RU",
+            "name_native": "Русский",
+            "name_english": "Russian",
+            "country_english": "Russia"
+        },
+        "quality": "medium",
+        "num_speakers": 1,
+        "speaker_id_map": {},
+        "files": {
+            "ru_RU-vladimir-medium.onnx": {
+                "size_bytes": 63516050,
+                "md5_digest": "e8e6cb5c1178f771582abf347d4fa7f7"
+            },
+            "ru_RU-vladimir-medium.onnx.json": {
+                "size_bytes": 4835,
+                "md5_digest": "8dab760a681aad33ea7c2a1df7c2c5be"
+            },
+            "MODEL_CARD": {
+                "size_bytes": 313,
+                "md5_digest": "7b50a255192cc1c44358d7cb20ddbb5c"
+            }
+        },
+        "aliases": []
+    },
