@@ -16,3 +16,7 @@
 После тренировки новые модели используются с этим же набором данных
 
 В voice примеры голосов, дообученные на небольших датасетах
+<audio controls>
+  <source src="https://github.com/mitrokun/espeak-ng-data/raw/refs/heads/main/sample.wav" type="audio/wav">
+  Ваш браузер не поддерживает элемент <code>audio</code>.
+</audio>
