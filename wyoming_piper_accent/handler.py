@@ -49,93 +49,69 @@ _CORRECTION_WORDS: Set[str] = {
     "стоящий", "стрелка", "стрелки", "стрелку", "судьбы", "сыром", "толки",
     "трусы", "туши", "угольный", "уже", "уха", "хлопок", "хоры",
     "хромом", "целую", "цепи", "цвета", "чайку", "чека", "чем",
-    "чёрта", "чудное", "страны", "толпы", "самому",
+    "чёрта", "чудное", "страны", "толпы", "самому", "адреса", "войска"
+    "мастера", "берег", "заросли", "лиса", "отпуска",
 }
-
 
 _STRESS_MARK = "\u0301"
 _RUSSIAN_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
 _RUSSIAN_VOWELS_SET = set(_RUSSIAN_VOWELS)
 
+# Эти функции остаются без изменений
 def _count_vowels(word: str) -> int:
-    """Вспомогательная функция для подсчета гласных в слове."""
     return sum(1 for char in word if char in _RUSSIAN_VOWELS_SET)
-
 
 def preprocess_text_for_stress(
     text: str, 
     accentor: Optional[Any],
     user_marker: str = '+'
 ) -> str:
-    """
-    Применяет ударения от Silero только для заданного списка проблемных слов.
-    """
-    # Если Silero не загружен или список слов пуст, выходим.
-    # Но перед этим проверяем, нет ли в тексте ручных ударений.
+
     if not accentor or not _CORRECTION_WORDS:
         if user_marker not in text:
-            return text  # Нет ни модели, ни ручных маркеров - делать нечего.
-        
+            return text
         _LOGGER.debug("Accentor not loaded, but manual stress markers found for processing.")
         text_with_markers = text
     else:
         _LOGGER.debug("Applying selective stress correction for %d words.", len(_CORRECTION_WORDS))
         try:
-            # Этап 1: Получаем полностью ударный текст от Silero
             text_with_silero_stress = accentor(text)
             _LOGGER.debug("Full text from Silero: %s", text_with_silero_stress)
-
-            # Этап 2: Собираем гибридный текст
             split_pattern = f'([\\s{re.escape(".,!?-")}]+)'
             original_parts = re.split(split_pattern, text)
             stressed_parts = re.split(split_pattern, text_with_silero_stress)
-
-            # Проверка на случай, если Silero изменил структуру текста
             if len(original_parts) != len(stressed_parts):
                 _LOGGER.warning("Text splitting mismatch. Using Silero's full output.")
                 text_with_markers = text_with_silero_stress
             else:
                 final_parts = []
                 for orig_part, stressed_part in zip(original_parts, stressed_parts):
-                    # Ключ для поиска - слово в нижнем регистре без знаков препинания
                     lookup_key = orig_part.lower().strip(".,!?-")
                     if lookup_key in _CORRECTION_WORDS:
-                        # Если слово в нашем списке, берем версию с ударением от Silero
                         _LOGGER.debug("Applying Silero stress for word: '%s' -> '%s'", orig_part, stressed_part)
                         final_parts.append(stressed_part)
                     else:
-                        # Иначе - берем оригинальное слово без ударения
                         final_parts.append(orig_part)
-                
                 text_with_markers = "".join(final_parts)
-
         except Exception:
             _LOGGER.exception("Error during selective stress application. Using original text.")
             text_with_markers = text
     
     _LOGGER.debug("Text with combined '+' markers: %s", text_with_markers)
-
-    # Этап 3: Финальное преобразование маркеров '+' в Unicode-символ ударения.
-    # Этот блок нужен всегда для обработки и ручных, и автоматических маркеров.
     stress_pattern = re.compile(re.escape(user_marker) + f"([{_RUSSIAN_VOWELS}])")
     parts = re.split(f'([\\s{re.escape(".,!?-")}]+)', text_with_markers)
     final_unicode_parts = []
-
     for part in parts:
         if not part or part.isspace() or part in ".,!?-":
             final_unicode_parts.append(part)
             continue
-
         word = part
         clean_word = word.replace(user_marker, '')
-
-        # Удаляем ударения из слов с одной гласной (контроль качества)
         if _count_vowels(clean_word) <= 1:
             final_unicode_parts.append(clean_word)
         else:
             def stress_replacer(match):
                 return match.group(1) + _STRESS_MARK
-            
             processed_word = stress_pattern.sub(stress_replacer, word)
             final_unicode_parts.append(processed_word)
     
@@ -159,9 +135,14 @@ class PiperEventHandler(AsyncEventHandler):
         self.process_manager = process_manager
         self.accentor = accentor
         self.sbd = SentenceBoundaryDetector()
-        self.is_streaming: Optional[bool] = None
         self._synthesize: Optional[Synthesize] = None
 
+        # <<< НОВОЕ: Переменные для управления состоянием стриминг-сессии >>>
+        self._is_streaming_session: bool = False
+        self._audio_started: bool = False
+
+
+    # <<< ИЗМЕНЕНО: Полностью переработанный метод для управления состоянием сессии >>>
     async def handle_event(self, event: Event) -> bool:
         if Describe.is_type(event.type):
             await self.write_event(self.wyoming_info_event)
@@ -169,25 +150,36 @@ class PiperEventHandler(AsyncEventHandler):
             return True
 
         try:
+            # --- НЕ-СТРИМИНГОВЫЙ РЕЖИМ (обратная совместимость) ---
             if Synthesize.is_type(event.type):
-                if self.is_streaming:
+                if self._is_streaming_session:
+                    _LOGGER.warning("Received Synthesize event during an active stream. Ignoring.")
                     return True
 
                 synthesize = Synthesize.from_event(event)
                 return await self._handle_synthesize(synthesize)
 
+            # --- ЛОГИКА СТРИМИНГА ---
             if not self.cli_args.streaming:
                 return True
 
             if SynthesizeStart.is_type(event.type):
                 stream_start = SynthesizeStart.from_event(event)
-                self.is_streaming = True
+                _LOGGER.debug("Stream session started: voice=%s", stream_start.voice)
+                
+                # Начало сессии
+                self._is_streaming_session = True
+                self._audio_started = False  # Сброс флага для новой сессии
                 self.sbd = SentenceBoundaryDetector()
                 self._synthesize = Synthesize(text="", voice=stream_start.voice)
-                _LOGGER.debug("Text stream started: voice=%s", stream_start.voice)
+                
                 return True
 
             if SynthesizeChunk.is_type(event.type):
+                if not self._is_streaming_session:
+                    _LOGGER.warning("Received SynthesizeChunk without an active session. Ignoring.")
+                    return True
+
                 assert self._synthesize is not None
                 stream_chunk = SynthesizeChunk.from_event(event)
                 for sentence in self.sbd.add_chunk(stream_chunk.text):
@@ -198,24 +190,42 @@ class PiperEventHandler(AsyncEventHandler):
                 return True
 
             if SynthesizeStop.is_type(event.type):
+                if not self._is_streaming_session:
+                    _LOGGER.warning("Received SynthesizeStop without an active session. Ignoring.")
+                    return True
+
                 assert self._synthesize is not None
                 self._synthesize.text = self.sbd.finish()
                 if self._synthesize.text:
                     await self._handle_synthesize(self._synthesize)
 
+                # Завершение сессии
+                if self._audio_started:
+                    await self.write_event(AudioStop().event())
+                    _LOGGER.debug("Sent final AudioStop for the session.")
+
                 await self.write_event(SynthesizeStopped().event())
-                _LOGGER.debug("Text stream stopped")
+                _LOGGER.debug("Stream session stopped")
+                
+                # Сброс состояния
+                self._is_streaming_session = False
+                self._audio_started = False
+                
                 return True
 
             return True
 
         except Exception as err:
+            _LOGGER.exception("Error handling event")
+            # Важно сбросить состояние при ошибке, чтобы избежать "зависания"
+            self._is_streaming_session = False
+            self._audio_started = False
             await self.write_event(
                 Error(text=str(err), code=err.__class__.__name__).event()
             )
-            _LOGGER.exception("Error handling event")
             return False
 
+    # <<< ИЗМЕНЕНО: Метод теперь учитывает состояние сессии >>>
     async def _handle_synthesize(self, synthesize: Synthesize) -> bool:
         _LOGGER.debug("Original text from client: %s", synthesize.text)
         
@@ -262,7 +272,10 @@ class PiperEventHandler(AsyncEventHandler):
             piper_proc.proc.stdin.write((input_json + "\n").encode("utf-8"))
             await piper_proc.proc.stdin.drain()
 
-            await self.write_event(AudioStart(rate=rate, width=width, channels=channels).event())
+            # <<< ИЗМЕНЕНО: Условная отправка AudioStart >>>
+            if not self._audio_started:
+                await self.write_event(AudioStart(rate=rate, width=width, channels=channels).event())
+                self._audio_started = True
             
             bytes_per_chunk = self.cli_args.samples_per_chunk * width * channels
             
@@ -272,6 +285,7 @@ class PiperEventHandler(AsyncEventHandler):
             synthesis_finished = False
             try:
                 while True:
+                    # Этот блок чтения и отправки AudioChunk остается без изменений
                     if synthesis_finished:
                         try:
                             chunk = await asyncio.wait_for(read_task, timeout=0.1)
@@ -282,15 +296,12 @@ class PiperEventHandler(AsyncEventHandler):
                         finished, pending = await asyncio.wait(
                             [read_task, done_task], return_when=asyncio.FIRST_COMPLETED
                         )
-
                         if done_task in finished:
                             _LOGGER.debug("Synthesis done event received. Will now drain stdout buffer.")
                             synthesis_finished = True
                             if read_task not in finished:
                                 continue
-
                         chunk = read_task.result()
-
                     if not chunk:
                         _LOGGER.debug("Piper stdout closed (EOF).")
                         break
@@ -306,7 +317,13 @@ class PiperEventHandler(AsyncEventHandler):
                 if not done_task.done():
                     done_task.cancel()
                 
-                await self.write_event(AudioStop().event())
-                _LOGGER.debug("Completed request and sent AudioStop.")
+                # <<< ИЗМЕНЕНО: Условная отправка AudioStop >>>
+                # Отправляем AudioStop только если это НЕ стриминг-сессия.
+                # Для стриминга AudioStop будет отправлен один раз в handle_event.
+                if not self._is_streaming_session:
+                    await self.write_event(AudioStop().event())
+                    _LOGGER.debug("Completed non-streaming request and sent AudioStop.")
+                else:
+                    _LOGGER.debug("Completed synthesis for a streaming chunk.")
 
         return True
