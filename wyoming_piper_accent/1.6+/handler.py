@@ -23,52 +23,55 @@ from .sentence_boundary import SentenceBoundaryDetector
 
 _LOGGER = logging.getLogger(__name__)
 
+# Словарь для коррекции ударений, отсортированный по алфавиту
 _CORRECTION_WORDS: Set[str] = {
     "адреса", "атлас", "беды", "белкa", "белки", "белок", "берегу",
-    "большая", "боры", "бури", "ведение", "верхом", "вести", "ветряная",
-    "веса", "вечера", "веках", "вина", "виски", "войны", "войска",
-    "воды", "ворона", "ворот", "ворота", "выходить", "гвоздик", "глотка",
-    "глоток", "глотку", "глубины", "глубоко", "года", "головы", "гоним",
-    "горе", "города", "господа", "графа", "гроши", "дела", "дорогой",
-    "дороги", "дорог", "другом", "духи", "душа", "души", "дыбы",
-    "еду", "жаркое", "жару", "жила", "жучка", "заводи", "залом",
-    "замок", "замки", "запах", "заросли", "засели", "засыпал", "здорово",
-    "земли", "зимы", "знаком", "избегать", "извести", "ирис", "катера",
-    "кирка", "клещи", "клубы", "козлы", "колки", "коне", "корпуса",
-    "краю", "кружка", "кружки", "крыла", "леса", "лесок", "лета",
-    "лиса", "лука", "любим", "мало", "мастера", "мела", "меньшинства",
-    "места", "мести", "меха", "мою", "моя", "мудрено", "мука",
-    "начала", "начало", "ноги", "нужды", "облака", "окна", "опера",
-    "орган", "остро", "отпуска", "пайки", "парить", "паром", "пекло",
-    "пили", "письма", "пирога", "пища", "плачу", "повара", "пола",
-    "полки", "полосы", "полу", "полы", "поля", "попадал", "пора",
-    "поручи", "постели", "потом", "поту", "пошло", "привод", "пристав",
-    "пристань", "пропасть", "простынь", "пряди", "пылу", "рога", "руки",
-    "самого", "самой", "самому", "сведение", "связи", "сели", "село",
-    "семьи", "сестры", "синее", "скачка", "слез", "слезу", "слова",
-    "смычка", "содержим", "сорок", "сорока", "спешить", "спина", "стада",
-    "стоишь", "стоит", "стону", "стороны", "стою", "стоящий", "страны", "стрелка",
-    "стрелки", "стрелку", "судьбы", "сыром", "толки", "толпы", "тому",
-    "трусы", "туши", "тюрьмы", "угольный", "уже", "уха", "хлопок",
-    "хоры", "хромом", "целую", "цепи", "цвета", "чайку", "часу",
-    "чека", "чудное", "широты",
-    # "всем", "все", "нем", "пчелы", "села", "стекла", "чем", "черта", "берег", "звезды",
+    "большая", "боры", "бури", "ведение", "верхом", "вести", "веса",
+    "века", "веках", "ветра", "ветряная", "вечера", "вина", "виски", "войны",
+    "волны", "войска", "воды", "ворона", "ворот", "ворота", "выходить", "гвоздик",
+    "глаза", "глотка", "глоток", "глотку", "глубины", "глубоко", "года",
+    "головы", "голоса", "гоним", "горе", "города", "господа", "графа", "гроши",
+    "груди", "дела", "дорог", "дороги", "дорогой", "другом", "духи", "душа",
+    "души", "дыбы", "еду", "жаркое", "жару", "жила", "жучка", "заводи",
+    "залом", "замок", "замки", "запах", "заросли", "засели", "засыпал",
+    "здорово", "земли", "зимы", "знаком", "избегать", "извести", "игры",
+    "ирис", "катера", "кирка", "клещи", "клубы", "козлы", "колки",
+    "коне", "корпуса", "краю", "кружка", "кружки", "крыла", "леса",
+    "лесок", "лета", "лиса", "луга", "лука", "любим", "мало", "мастера",
+    "мела", "меньшинства", "места", "мести", "меха", "мою", "моя",
+    "мудрено", "мука", "муки", "мукой", "начала", "начало", "ноги", "номера", "ношу", "нужды", "облака",
+    "окна", "опера", "орган", "органы", "органов", "органом", "остро", "отпуска",
+    "пайки", "парил", "паруса","парить", "паром", "пекло", "пили", "письма", "пирога", "пища",
+    "плачу", "повара", "поезда", "пола", "полки", "полосы", "полу", "полы",
+    "поля", "полюса", "попадал", "пора", "поручи", "постели", "потом",
+    "поту", "пошло", "привод", "пристав", "пристань", "пропасть",
+    "простынь", "пряди", "пылу", "реки", "рога", "руки", "самого",
+    "самой", "самому", "саду", "сахара", "сведение", "свечи", "связи", "сели",
+    "село", "семьи", "сестры", "синее", "скачка", "слез", "слезу", 
+    "слова", "смычка", "содержим", "соска", "соски", "сорок", "сорока", "спешить",
+    "спина", "стада", "стены", "стоишь", "стоит", "стону", "стороны", "стою",
+    "стоящий", "страны", "стрелка", "стрелки", "стрелку", "стрелок",
+    "судьбы", "сыром", "строки", "толки", "толпы", "тому", "трусы", "туши",
+    "тюрьмы", "угольный", "уже", "уха", "холода", "хлопок", "хоры", "хромом",
+    "целую", "цепи", "цвета", "чайку", "часу", "чека", "чудное",
+    "широты", "просыпался",
 }
+# "всем", "все", "нем", "пчелы", "села", "стекла", "чем", "черта", "берег", "звезды", "озера",
 
 _STRESS_MARK = "\u0301"
 _RUSSIAN_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
 _RUSSIAN_VOWELS_SET = set(_RUSSIAN_VOWELS)
 
-# Эти функции остаются без изменений
+
 def _count_vowels(word: str) -> int:
     return sum(1 for char in word if char in _RUSSIAN_VOWELS_SET)
 
+
 def preprocess_text_for_stress(
-    text: str, 
+    text: str,
     accentor: Optional[Any],
     user_marker: str = '+'
 ) -> str:
-
     if not accentor or not _CORRECTION_WORDS:
         if user_marker not in text:
             return text
@@ -99,24 +102,36 @@ def preprocess_text_for_stress(
             _LOGGER.exception("Error during selective stress application. Using original text.")
             text_with_markers = text
     
-    _LOGGER.debug("Text with combined '+' markers: %s", text_with_markers)
+    _LOGGER.debug("Text with stress: %s", text_with_markers)
+    
+    # Этот паттерн определяет валидное ударение: маркер '+' ПЕРЕД гласной буквой.
+    # Он будет использоваться и для проверки, и для замены.
     stress_pattern = re.compile(re.escape(user_marker) + f"([{_RUSSIAN_VOWELS}])")
+    
     parts = re.split(f'([\\s{re.escape(".,!?-")}]+)', text_with_markers)
     final_unicode_parts = []
+    
     for part in parts:
         if not part or part.isspace() or part in ".,!?-":
             final_unicode_parts.append(part)
             continue
-        word = part
-        clean_word = word.replace(user_marker, '')
-        if _count_vowels(clean_word) <= 1:
-            final_unicode_parts.append(clean_word)
+        
+        # Обрабатываем слово, только если в нем найдено валидное ударение ('+гласная').
+        # Это автоматически отфильтрует "5+5", "A+B" и т.д.
+        if stress_pattern.search(part):
+            word = part
+            clean_word = word.replace(user_marker, "")
+            if _count_vowels(clean_word) <= 1:
+                final_unicode_parts.append(clean_word)
+            else:
+                def stress_replacer(match):
+                    return match.group(1) + _STRESS_MARK
+                processed_word = stress_pattern.sub(stress_replacer, word)
+                final_unicode_parts.append(processed_word)
         else:
-            def stress_replacer(match):
-                return match.group(1) + _STRESS_MARK
-            processed_word = stress_pattern.sub(stress_replacer, word)
-            final_unicode_parts.append(processed_word)
-    
+            # Если валидное ударение не найдено, добавляем часть без изменений.
+            final_unicode_parts.append(part)
+            
     return "".join(final_unicode_parts)
 
 
@@ -138,13 +153,9 @@ class PiperEventHandler(AsyncEventHandler):
         self.accentor = accentor
         self.sbd = SentenceBoundaryDetector()
         self._synthesize: Optional[Synthesize] = None
-
-        # <<< НОВОЕ: Переменные для управления состоянием стриминг-сессии >>>
         self._is_streaming_session: bool = False
         self._audio_started: bool = False
 
-
-    # <<< ИЗМЕНЕНО: Полностью переработанный метод для управления состоянием сессии >>>
     async def handle_event(self, event: Event) -> bool:
         if Describe.is_type(event.type):
             await self.write_event(self.wyoming_info_event)
@@ -152,16 +163,13 @@ class PiperEventHandler(AsyncEventHandler):
             return True
 
         try:
-            # --- НЕ-СТРИМИНГОВЫЙ РЕЖИМ (обратная совместимость) ---
             if Synthesize.is_type(event.type):
                 if self._is_streaming_session:
                     _LOGGER.warning("Received Synthesize event during an active stream. Ignoring.")
                     return True
-
                 synthesize = Synthesize.from_event(event)
                 return await self._handle_synthesize(synthesize)
 
-            # --- ЛОГИКА СТРИМИНГА ---
             if not self.cli_args.streaming:
                 return True
 
@@ -169,12 +177,10 @@ class PiperEventHandler(AsyncEventHandler):
                 stream_start = SynthesizeStart.from_event(event)
                 _LOGGER.debug("Stream session started: voice=%s", stream_start.voice)
                 
-                # Начало сессии
                 self._is_streaming_session = True
-                self._audio_started = False  # Сброс флага для новой сессии
+                self._audio_started = False
                 self.sbd = SentenceBoundaryDetector()
                 self._synthesize = Synthesize(text="", voice=stream_start.voice)
-                
                 return True
 
             if SynthesizeChunk.is_type(event.type):
@@ -188,7 +194,6 @@ class PiperEventHandler(AsyncEventHandler):
                     _LOGGER.debug("Synthesizing stream sentence: %s", sentence)
                     self._synthesize.text = sentence
                     await self._handle_synthesize(self._synthesize)
-
                 return True
 
             if SynthesizeStop.is_type(event.type):
@@ -201,7 +206,6 @@ class PiperEventHandler(AsyncEventHandler):
                 if self._synthesize.text:
                     await self._handle_synthesize(self._synthesize)
 
-                # Завершение сессии
                 if self._audio_started:
                     await self.write_event(AudioStop().event())
                     _LOGGER.debug("Sent final AudioStop for the session.")
@@ -209,17 +213,14 @@ class PiperEventHandler(AsyncEventHandler):
                 await self.write_event(SynthesizeStopped().event())
                 _LOGGER.debug("Stream session stopped")
                 
-                # Сброс состояния
                 self._is_streaming_session = False
                 self._audio_started = False
-                
                 return True
 
             return True
 
         except Exception as err:
             _LOGGER.exception("Error handling event")
-            # Важно сбросить состояние при ошибке, чтобы избежать "зависания"
             self._is_streaming_session = False
             self._audio_started = False
             await self.write_event(
@@ -227,7 +228,6 @@ class PiperEventHandler(AsyncEventHandler):
             )
             return False
 
-    # <<< ИЗМЕНЕНО: Метод теперь учитывает состояние сессии >>>
     async def _handle_synthesize(self, synthesize: Synthesize) -> bool:
         _LOGGER.debug("Original text from client: %s", synthesize.text)
         
@@ -274,7 +274,6 @@ class PiperEventHandler(AsyncEventHandler):
             piper_proc.proc.stdin.write((input_json + "\n").encode("utf-8"))
             await piper_proc.proc.stdin.drain()
 
-            # <<< ИЗМЕНЕНО: Условная отправка AudioStart >>>
             if not self._audio_started:
                 await self.write_event(AudioStart(rate=rate, width=width, channels=channels).event())
                 self._audio_started = True
@@ -287,7 +286,6 @@ class PiperEventHandler(AsyncEventHandler):
             synthesis_finished = False
             try:
                 while True:
-                    # Этот блок чтения и отправки AudioChunk остается без изменений
                     if synthesis_finished:
                         try:
                             chunk = await asyncio.wait_for(read_task, timeout=0.1)
@@ -319,9 +317,6 @@ class PiperEventHandler(AsyncEventHandler):
                 if not done_task.done():
                     done_task.cancel()
                 
-                # <<< ИЗМЕНЕНО: Условная отправка AudioStop >>>
-                # Отправляем AudioStop только если это НЕ стриминг-сессия.
-                # Для стриминга AudioStop будет отправлен один раз в handle_event.
                 if not self._is_streaming_session:
                     await self.write_event(AudioStop().event())
                     _LOGGER.debug("Completed non-streaming request and sent AudioStop.")

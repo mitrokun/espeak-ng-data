@@ -4,6 +4,7 @@
 import argparse
 import asyncio
 import json
+import re
 import logging
 import time
 from dataclasses import dataclass, field
@@ -189,6 +190,17 @@ class PiperProcessManager:
                     break
                 line = line_bytes.decode(errors="ignore").strip()
                 if is_debug:
+
+                    def round_floats(match):
+                        try:
+                            num = float(match.group(0))
+                            return f"{num:.3f}"
+                        except ValueError:
+                            return match.group(0)
+
+                    # Ищем числа с точкой и более чем 3 знаками после нее для замены
+                    line = re.sub(r"\d+\.\d{4,}", round_floats, line)
+
                     _LOGGER.debug("Piper stderr: %s", line)
                 if "Real-time factor" in line:
                     _LOGGER.debug("Synthesis completion detected in stderr.")
