@@ -1,40 +1,53 @@
+# sentence_boundary.py (Версия 10.0 - Архитектура "Единый Умный Поиск")
+"""
+Определяет границы предложений в потоке токенов, используя единое,
+надежное регулярное выражение для поиска валидных границ "на лету".
+Адаптирует текст для высококачественного синтеза речи (TTS).
+"""
 from collections.abc import Iterable
 import regex as re
 
-SENTENCE_END = r"[.!?…]|[。！？]|[؟]|[।॥]"
-ABBREVIATION_RE = re.compile(r"\b\p{L}{1,3}\.$", re.UNICODE)
-# Основное выражение для поиска границ предложений.
-# Ищет текст, заканчивающийся на знак конца предложения,
-# за которым следует пробел и заглавная буква (или начало/конец текста).
+# --- КОНФИГУРАЦИЯ ---
+HARD_LIMIT = 250
+MERGE_BUFFER_LIMIT = 20
+
+# ЕДИНОЕ РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ ДЛЯ ПОИСКА ВАЛИДНОЙ ГРАНИЦЫ
+# Оно находит конец предложения, только если он НЕ является ложным.
+# (?<!...) - "негативное заглядывание назад"
 SENTENCE_BOUNDARY_RE = re.compile(
-    rf"(.*?(?:{SENTENCE_END}+))(?=\s+[\p{{Lu}}\p{{Lt}}\p{{Lo}}]|\s*[-*(]|\s*\d+\.\s+|\s*$)",
-    re.DOTALL,
+    r"""
+    (?<!\b\p{L}{1,3})              # Не должно быть короткого слова/инициала (г., ул.)
+    (?<!\p{Ll}\.\p{Ll})            # НЕ должно быть "буква.буква" (файл.py)
+    ([.!?…])                       # ЗАХВАТЫВАЕМ сам знак конца предложения
+    (?=\s+\p{Lu}|\s*$)             # После знака должен быть пробел или конец строки
+    """,
+    re.VERBOSE | re.UNICODE
 )
 
-WORD_ASTERISKS = re.compile(r"\*+([^\*]+)\*+")
-LINE_ASTERICKS = re.compile(r"(?<=^|\n)\s*\*+")
-
-
-def pre_clean_for_splitting(chunk: str) -> str:
-    """
-    "Грубая" очистка чанка от символов, мешающих разделению.
-    Применяется ДО поиска границ.
-    """
-    # Удаляем кавычки
-    chunk = chunk.replace('"', '').replace('«', '').replace('»', '')
-    # Заменяем тире и дефисы на запятые, чтобы предотвратить неверное разделение
-    chunk = re.sub(r'[\s]*[—–-][\s]*', ', ', chunk)
-    return chunk
-
+# Регулярные выражения для деликатной очистки
+LIST_ITEM_RE = re.compile(r"^\s*(?:(\d+)\.|([*-]))\s*(.*)", re.MULTILINE)
 
 def post_clean_sentence(sentence: str) -> str:
-    """
-    "Тонкая" очистка уже найденного, целого предложения от форматирования.
-    Применяется ПОСЛЕ поиска границ.
-    """
-    sentence = WORD_ASTERISKS.sub(r"\1", sentence)
-    sentence = LINE_ASTERICKS.sub("", sentence)
-    return sentence.strip()
+    """Применяет финальные, деликатные правила форматирования."""
+    
+    sentence = re.sub(r"\s*\((.*?)\)", r", \1, ", sentence)
+
+    def list_replacer(match):
+        num, bullet, text = match.groups()
+        if num:
+            return f"{num}, {text}"
+        return text
+
+    sentence = LIST_ITEM_RE.sub(list_replacer, sentence)
+    sentence = sentence.replace('\n', ' ').replace(';', '.')
+    sentence = re.sub(r"\b([\p{IsCyrillic}]{1,3})\.\s+(?=\p{Lu})", r"\1, ", sentence)
+    sentence = re.sub(r"^[.,\s]+", "", sentence)
+    sentence = re.sub(r"[\*«»\"]", "", sentence)
+    sentence = re.sub(r"\s*—\s*", ", ", sentence)
+    sentence = re.sub(r"\s+", " ", sentence)
+    # Исправляем двойные запятые и другие артефакты
+    sentence = re.sub(r"\s*([,.]\s*){2,}", r"\1 ", sentence).strip()
+    return sentence
 
 
 class SentenceBoundaryDetector:
@@ -42,63 +55,50 @@ class SentenceBoundaryDetector:
         self.buffer = ""
         self.held_sentence = ""
 
-    def _process_sentence(self, sentence_text: str) -> Iterable[str]:
-        """
-        Обрабатывает уже найденное предложение: финализирует очистку и решает, вернуть его или удержать.
-        """
+    def _process_and_yield(self, sentence_text: str) -> Iterable[str]:
         sentence = post_clean_sentence(sentence_text)
         if not sentence:
             return
 
-        if self.held_sentence:
-            # Если было удержанное предложение, склеиваем его с текущим
-            yield f"{self.held_sentence} {sentence}"
-            self.held_sentence = ""
+        if not self.held_sentence:
+            self.held_sentence = sentence
         else:
-            # Проверяем, не является ли предложение слишком коротким (одно слово)
-            if len(sentence.split()) <= 1 and not ABBREVIATION_RE.search(sentence):
-                # Если да, удерживаем его
-                self.held_sentence = sentence
-            else:
-                # В противном случае, возвращаем
-                yield sentence
+            joiner = self.held_sentence
+            if joiner.endswith('.'):
+                joiner = joiner[:-1] + ','
+            self.held_sentence = f"{joiner} {sentence}"
+
+        if len(self.held_sentence) >= MERGE_BUFFER_LIMIT:
+            yield self.held_sentence
+            self.held_sentence = ""
 
     def add_chunk(self, chunk: str) -> Iterable[str]:
-        """
-        Обрабатывает входящий фрагмент текста, очищает его и возвращает готовые предложения.
-        """
-        # 1. Применяем предварительную очистку
-        cleaned_chunk = pre_clean_for_splitting(chunk)
-        self.buffer += cleaned_chunk
+        self.buffer += chunk
 
-        # 2. Ищем границы предложений
         while True:
             match = SENTENCE_BOUNDARY_RE.search(self.buffer)
             if not match:
+                if len(self.buffer) > HARD_LIMIT:
+                    split_pos = self.buffer.rfind(' ', 0, HARD_LIMIT)
+                    if split_pos == -1: split_pos = HARD_LIMIT
+                    sentence = self.buffer[:split_pos]
+                    yield from self._process_and_yield(sentence)
+                    self.buffer = self.buffer[split_pos:]
+                    continue
                 break
 
-            sentence_part = match.group(0)
-            self.buffer = self.buffer[match.end():]
+            sentence_end_pos = match.end(1) # Конец захваченной группы (сам разделитель)
+            sentence = self.buffer[:sentence_end_pos]
+            yield from self._process_and_yield(sentence)
+            self.buffer = self.buffer[sentence_end_pos:]
 
-            # 3. Обрабатываем найденное предложение (с логикой удержания)
-            yield from self._process_sentence(sentence_part)
-
-    def finish(self) -> Iterable[str]:
-        """
-        Завершает обработку, возвращая любой оставшийся текст.
-        """
-        tail = self.buffer.strip()
-        if self.held_sentence:
-            # Если есть и удержанное предложение, и остаток в буфере, склеиваем их
-            if tail:
-                yield from self._process_sentence(f"{self.held_sentence} {tail}")
-            # Иначе просто возвращаем удержанное
-            else:
-                yield from self._process_sentence(self.held_sentence)
-        elif tail:
-            # Если удержанного нет, но есть остаток в буфере
-            yield from self._process_sentence(tail)
-
-        # Сброс состояния
+    def finish(self) -> str:
+        if self.buffer:
+            sentences_from_buffer = list(self._process_and_yield(self.buffer))
+            if sentences_from_buffer:
+                return " ".join(sentences_from_buffer)
+        
+        final_text = self.held_sentence
         self.buffer = ""
         self.held_sentence = ""
+        return final_text
