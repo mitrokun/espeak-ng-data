@@ -8,7 +8,7 @@ from collections.abc import Iterable
 import regex as re
 
 # --- КОНФИГУРАЦИЯ ---
-HARD_LIMIT = 250
+HARD_LIMIT = 350
 MERGE_BUFFER_LIMIT = 20
 
 # ЕДИНОЕ РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ ДЛЯ ПОИСКА ВАЛИДНОЙ ГРАНИЦЫ

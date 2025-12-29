@@ -26,10 +26,17 @@ from .download import ensure_voice_exists, find_voice
 
 _LOGGER = logging.getLogger(__name__)
 
+# --- Опциональный импорт английского нормализатора ---
+try:
+    from .english_normalizer import EnglishNormalizer
+    ENG_TO_IPA_AVAILABLE = True
+except ImportError:
+    EnglishNormalizer = None
+    ENG_TO_IPA_AVAILABLE = False
+
 
 # --- Логика расстановки ударений ---
 
-# Словарь отсортирован для удобства
 _CORRECTION_WORDS: Set[str] = set([
     "адреса", "атлас", "белкa", "белки", "белок", "беды", "берегу", "большая",
     "боры", "бури", "ведение", "века", "веках", "верхом", "вести", "веса",
@@ -40,7 +47,7 @@ _CORRECTION_WORDS: Set[str] = set([
     "гроши", "грозы", "груди", "дела", "дорог", "доктора", "дома", "дороги", "дорогой", "другом",
     "духи", "душа", "души", "дыбы", "еду", "жаркое", "жару", "жила", "жучка",
     "заводи", "залом", "замок", "замки", "заморозки", "запах", "заросли", "засели",
-    "засыпал", "здорово", "земли", "зимы", "знаком", "избегать", "извести",
+    "засыпал", "здорово", "зеркала", "земли", "зимы", "знаком", "избегать", "извести",
     "игры", "ирис", "катера", "кирка", "клещи", "клубы", "козлы", "колки",
     "коне", "корпуса", "краю", "кружка", "кружки", "крыла", "леса", "лесок",
     "лета", "лиса", "луга", "лука", "любим", "мало", "мастера", "мела",
@@ -50,8 +57,8 @@ _CORRECTION_WORDS: Set[str] = set([
     "органы", "остро", "отпуска", "пайки", "парил", "парить", "паром",
     "паруса", "пекло", "пили", "пирога", "письма", "пища", "плачу", "повара",
     "поезда", "пола", "полки", "полосы", "полу", "полы", "поля", "полюса",
-    "попадал", "пора", "поручи", "постели", "поту", "пошло", "помеси",
-    "привод", "пристав", "пристань", "пропасть", "простынь", "просыпался",
+    "попадал", "пора", "поручи", "постели", "потерпите", "поту", "пошло", "помеси",
+    "привод", "пристав", "пристань", "проводами", "пропасть", "простынь", "просыпался",
     "пряди", "пылу", "реки", "рога", "руки", "самого", "самой", "самому",
     "саду", "сахара", "сбегать", "сведение", "свечи", "связи", "сели", "село", "семьи",
     "сестры", "синее", "скачка", "скачками", "слез", "слезу", "слова", "смычка",
@@ -61,7 +68,7 @@ _CORRECTION_WORDS: Set[str] = set([
     "строки", "судьбы", "сыром", "толки", "толпы", "тому", "трусы", "туши",
     "тюрьмы", "угольный", "уже", "учителя", "уха", "холода", "хлопок", "хлопком",
     "хлопока", "хоры", "хромом", "целую", "цепи", "цвета", "чайку", "часу", "чека",
-    "числа", "чудное", "широты", "гнезда", "озера", "берет", "тормоза", "родами", "позднее",
+    "числа", "чудное", "широты", "гнезда", "озера", "берет", "тормоза", "родами", "позднее", "проруби",
 ])
 
 _STRESS_MARK = "\u0301"
@@ -85,20 +92,17 @@ def preprocess_text_for_stress(text: str, accentor: Optional[Any], user_marker: 
         split_pattern = f'([\\s{re.escape(".,!?-")}]+)'
         original_parts = re.split(split_pattern, text)
         stressed_parts = re.split(split_pattern, text_with_silero_stress)
-        final_parts = []
 
         if len(original_parts) != len(stressed_parts):
             _LOGGER.warning("Text splitting mismatch. Using Silero's full output.")
-            final_parts = stressed_parts
-        else:
-            for orig_part, stressed_part in zip(original_parts, stressed_parts):
-                lookup_key = orig_part.lower().strip(".,!?-")
-                if lookup_key in _CORRECTION_WORDS:
-                    _LOGGER.debug("Applying Silero stress for word: '%s' -> '%s'", orig_part, stressed_part)
-                    final_parts.append(stressed_part)
-                else:
-                    final_parts.append(orig_part)
+            return text_with_silero_stress
 
+        final_parts = [
+            stressed_part
+            if orig_part.lower().strip(".,!?-") in _CORRECTION_WORDS
+            else orig_part
+            for orig_part, stressed_part in zip(original_parts, stressed_parts)
+        ]
         text_with_markers = "".join(final_parts)
 
     except Exception:
@@ -108,7 +112,6 @@ def preprocess_text_for_stress(text: str, accentor: Optional[Any], user_marker: 
     stress_pattern = re.compile(re.escape(user_marker) + f"([{_RUSSIAN_VOWELS}])")
     parts = re.split(f'([\\s{re.escape(".,!?-")}]+)', text_with_markers)
     final_unicode_parts = []
-
     for part in parts:
         if not part or part.isspace() or part in ".,!?-":
             final_unicode_parts.append(part)
@@ -135,15 +138,7 @@ _VOICE_LOCK = asyncio.Lock()
 
 
 class PiperEventHandler(AsyncEventHandler):
-    def __init__(
-        self,
-        wyoming_info: Info,
-        cli_args: argparse.Namespace,
-        voices_info: Dict[str, Any],
-        accentor: Optional[Any],
-        *args,
-        **kwargs,
-    ) -> None:
+    def __init__(self, wyoming_info: Info, cli_args: argparse.Namespace, voices_info: Dict[str, Any], accentor: Optional[Any], *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.cli_args = cli_args
         self.wyoming_info_event = wyoming_info.event()
@@ -154,13 +149,21 @@ class PiperEventHandler(AsyncEventHandler):
         self.sbd = SentenceBoundaryDetector()
         self._synthesize: Optional[Synthesize] = None
 
+        if ENG_TO_IPA_AVAILABLE and EnglishNormalizer:
+            self.eng_normalizer = EnglishNormalizer()
+            _LOGGER.debug("English-to-Russian normalizer is enabled.")
+        else:
+            self.eng_normalizer = None
+            _LOGGER.warning("`eng-to-ipa` library not found. English-to-Russian normalizer is disabled. Run `pip install eng-to-ipa` to enable it.")
+
     async def _process_and_synthesize(self, sentence: str, synthesize_obj: Synthesize):
-        """Применяет ударения и отправляет на синтез."""
         if not sentence.strip():
             return
 
+        if self.eng_normalizer:
+            sentence = self.eng_normalizer.normalize(sentence)
+
         stressed_sentence = preprocess_text_for_stress(sentence, self.accentor)
-        # Отладочная строка для вывода финального текста в лог
         _LOGGER.debug(f"Final text for synthesis: {stressed_sentence}")
 
         synthesize_obj.text = stressed_sentence
@@ -183,7 +186,6 @@ class PiperEventHandler(AsyncEventHandler):
                 for sentence in self.sbd.add_chunk(synthesize.text):
                     await self._process_and_synthesize(sentence, synthesize)
 
-                # ИЗМЕНЕНИЕ: Обрабатываем остаток из буфера
                 final_sentence = self.sbd.finish()
                 if final_sentence:
                     await self._process_and_synthesize(final_sentence, synthesize)
@@ -212,8 +214,6 @@ class PiperEventHandler(AsyncEventHandler):
 
             if SynthesizeStop.is_type(event.type):
                 assert self._synthesize is not None
-
-                # ИЗМЕНЕНИЕ: Обрабатываем остаток из буфера
                 final_sentence = self.sbd.finish()
                 if final_sentence:
                     await self._process_and_synthesize(final_sentence, self._synthesize)
@@ -235,46 +235,45 @@ class PiperEventHandler(AsyncEventHandler):
     async def _handle_synthesize(self, synthesize: Synthesize, send_stop: bool = True) -> bool:
         global _VOICE, _VOICE_NAME
 
-        raw_text = synthesize.text
-        if not raw_text.strip():
+        text = " ".join(synthesize.text.strip().splitlines())
+        if not text:
             return True
 
         _LOGGER.debug(f"Synthesizing: {synthesize}")
-        text = " ".join(raw_text.strip().splitlines())
 
         if self.cli_args.auto_punctuation and text:
-            has_punctuation = any(text.endswith(p) for p in self.cli_args.auto_punctuation)
-            if not has_punctuation:
-                text = text + self.cli_args.auto_punctuation[0]
+            if not any(text.endswith(p) for p in self.cli_args.auto_punctuation):
+                text += self.cli_args.auto_punctuation[0]
 
-        voice_name: Optional[str] = None
-        voice_speaker: Optional[str] = None
-        if synthesize.voice is not None:
-            voice_name = synthesize.voice.name
-            voice_speaker = synthesize.voice.speaker
-
+        voice_name, voice_speaker = (synthesize.voice.name, synthesize.voice.speaker) if synthesize.voice else (None, None)
         voice_name = voice_name or self.cli_args.voice
         if voice_name == self.cli_args.voice:
             voice_speaker = voice_speaker or self.cli_args.speaker
 
         assert voice_name is not None
-        voice_info = self.voices_info.get(voice_name, {})
-        voice_name = voice_info.get("key", voice_name)
+        voice_name = self.voices_info.get(voice_name, {}).get("key", voice_name)
         assert voice_name is not None
 
         async with _VOICE_LOCK:
             if voice_name != _VOICE_NAME:
                 _LOGGER.debug(f"Loading voice: {voice_name}")
                 ensure_voice_exists(
-                    voice_name, self.cli_args.data_dir, self.cli_args.download_dir, self.voices_info
+                    voice_name,
+                    self.cli_args.data_dir,
+                    self.cli_args.download_dir,
+                    self.voices_info,
                 )
                 model_path, config_path = find_voice(voice_name, self.cli_args.data_dir)
-                _VOICE = PiperVoice.load(model_path, config_path, use_cuda=self.cli_args.use_cuda)
-                _VOICE_NAME = voice_name
+                _VOICE, _VOICE_NAME = PiperVoice.load(model_path, config_path, use_cuda=self.cli_args.use_cuda), voice_name
 
             assert _VOICE is not None
 
-            syn_config = SynthesisConfig()
+            syn_config = SynthesisConfig(
+                length_scale=self.cli_args.length_scale,
+                noise_scale=self.cli_args.noise_scale,
+                noise_w_scale=self.cli_args.noise_w_scale,
+            )
+
             if voice_speaker is not None:
                 syn_config.speaker_id = _VOICE.config.speaker_id_map.get(voice_speaker)
                 if syn_config.speaker_id is None:
@@ -283,18 +282,26 @@ class PiperEventHandler(AsyncEventHandler):
                     except (ValueError, TypeError):
                         _LOGGER.warning("Speaker '%s' not found for voice '%s'", voice_speaker, voice_name)
 
-            syn_config.length_scale = self.cli_args.length_scale
-            syn_config.noise_scale = self.cli_args.noise_scale
-            syn_config.noise_w_scale = self.cli_args.noise_w_scale
+            rate, width, channels = _VOICE.config.sample_rate, 2, 1
 
-            rate = _VOICE.config.sample_rate
-            width = 2
-            channels = 1
+            if self.audio_started and self.cli_args.sentence_silence > 0:
+                num_silence_samples = int(rate * self.cli_args.sentence_silence)
+                
+                # 2 байта на семпл (16-бит)
+                silence_bytes = b'\x00' * (num_silence_samples * width * channels)
+                
+                if silence_bytes:
+                    await self.write_event(
+                        AudioChunk(
+                            audio=silence_bytes,
+                            rate=rate,
+                            width=width,
+                            channels=channels,
+                        ).event()
+                    )
 
             if not self.audio_started:
-                await self.write_event(
-                    AudioStart(rate=rate, width=width, channels=channels).event()
-                )
+                await self.write_event(AudioStart(rate=rate, width=width, channels=channels).event())
                 self.audio_started = True
 
             for chunk in _VOICE.synthesize(text, syn_config):

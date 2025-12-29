@@ -58,6 +58,12 @@ async def main() -> None:
         "--noise-w-scale", "--noise-w", type=float, help="Phoneme width noise"
     )
     parser.add_argument(
+        "--sentence-silence",
+        type=float,
+        default=0.0,
+        help="Seconds of silence after each sentence",
+    )
+    parser.add_argument(
         "--auto-punctuation", default=".?!", help="Automatically add punctuation"
     )
     parser.add_argument(
