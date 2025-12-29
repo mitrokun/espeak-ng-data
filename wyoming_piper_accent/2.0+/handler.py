@@ -1,4 +1,3 @@
-# Файл: handler.py
 """Event handler for clients of the server."""
 
 import argparse
