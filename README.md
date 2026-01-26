@@ -23,4 +23,37 @@
 
 В voice примеры голосов, дообученные на небольших датасетах
 
-В каталоге wyoming_piper_accent лежат мои изыскания по добавлению авторасстановки ударений для омографов в piper (сервер для Home assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака +. Сначала установите сервер согласно оффициальной инструкции, после чего замените файлы и доустановите silero в venv.
+В каталоге wyoming_piper_accent лежат мои изыскания по добавлению авторасстановки ударений для омографов в piper (сервер для Home assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака +. Телодвижения имеют смысл, если у вас есть свои тюны голосов. Как делать - рассказал в этом [видео](https://www.youtube.com/watch?v=zpWIUzaNHfw).
+
+### микрогайд
+
+```
+# Базовая установка Piper
+git clone https://github.com/rhasspy/wyoming-piper.git
+cd wyoming-piper
+script/setup
+
+# подготовка к установке silero-stress, CPU-only torch (без CUDA)
+./.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# silero-stress — для автоматической расстановки ударений в русском
+# eng-to-ipa — для улучшенного контроля преобразования английских слов
+./.venv/bin/pip install silero-stress eng-to-ipa
+
+# Скачиваем репо для замены данных
+git clone https://github.com/mitrokun/espeak-ng-data.git
+
+# файлы правил и реализация ударений. Существующие 4 голоса перестанут корректно работать.
+cp -r ./espeak-ng-data/espeak-ng-data/* ./.venv/lib/python3.12/site-packages/piper/espeak-ng-data/
+# Модификация кода
+cp -r ./espeak-ng-data/wyoming_piper_accent/2.0+/* ./wyoming_piper/
+
+# Запуск ( использую data в домашнем каталоге, скопируйте туда свои голоса)
+# существующий голос для теста cp ./espeak-ng-data/voice/ru_RU-maria-medium* ~/data/
+./script/run \
+    --voice ru_RU-maria-medium \
+    --uri 'tcp://0.0.0.0:10200' \
+    --data-dir ~/data \
+    --download-dir ~/data
+
+```
