@@ -23,10 +23,9 @@
 
 В voice примеры голосов, дообученные на небольших датасетах
 
-В каталоге wyoming_piper_accent лежат мои изыскания по добавлению авторасстановки ударений для омографов в piper (сервер для Home assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака +. Телодвижения имеют смысл, если у вас есть свои тюны голосов. Как делать - рассказал в этом [видео](https://www.youtube.com/watch?v=zpWIUzaNHfw).
+В каталоге wyoming_piper_accent лежат мои изыскания по разрешению омографов (список задан в `handler.py`) в wyoming piper (сервер для Home Assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака `+`. Телодвижения имеют смысл, если у вас есть свои тюны голосов. Как делать - рассказал в этом [видео](https://www.youtube.com/watch?v=zpWIUzaNHfw).
 
 ### микрогайд
-
 ```
 # Базовая установка Piper
 git clone https://github.com/rhasspy/wyoming-piper.git
