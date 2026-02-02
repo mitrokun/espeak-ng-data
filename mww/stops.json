@@ -1,9 +1,9 @@
 {
   "type": "micro",
-  "wake_word": "stops",
+  "wake_word": "Stop",
   "author": "mitrokun",
   "website": "https://github.com/mitrokun/espeak-ng-data/",
-  "model": "stops.tflite",
+  "model": "stop.tflite",
   "trained_languages": ["en"],
   "version": 2,
   "micro": {
@@ -15,4 +15,5 @@
   }
 
 }
+
 
