@@ -1,0 +1,17 @@
+{
+  "type": "micro",
+  "wake_word": "GLaDOS",
+  "author": "mitrokun",
+  "website": "https://github.com/mitrokun/espeak-ng-data/",
+  "model": "glados.tflite",
+  "trained_languages": ["ru"],
+  "version": 2,
+  "micro": {
+    "probability_cutoff": 0.9,
+    "feature_step_size": 10,
+    "sliding_window_size": 5,
+    "tensor_arena_size": 30000,
+    "minimum_esphome_version": "2024.7.0"
+  }
+
+}
