@@ -37,7 +37,7 @@ script/setup
 
 # silero-stress — для автоматической расстановки ударений в русском
 # eng-to-ipa — для улучшенного контроля преобразования английских слов
-./.venv/bin/pip install silero-stress eng-to-ipa
+./.venv/bin/pip install silero-stress eng-to-ipa num2words
 
 # Скачиваем репо для замены данных
 git clone https://github.com/mitrokun/espeak-ng-data.git
