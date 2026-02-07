@@ -1,8 +1,7 @@
-# sentence_boundary.py (Версия 10.0 - Архитектура "Единый Умный Поиск")
+# sentence_boundary.py (Версия 10.3 - Clean & Stable)
 """
-Определяет границы предложений в потоке токенов, используя единое,
-надежное регулярное выражение для поиска валидных границ "на лету".
-Адаптирует текст для высококачественного синтеза речи (TTS).
+Определяет границы предложений в потоке токенов.
+Содержит защиту от разрыва дробных чисел (0.5) при потоковой передаче.
 """
 from collections.abc import Iterable
 import regex as re
@@ -11,21 +10,19 @@ import regex as re
 HARD_LIMIT = 350
 MERGE_BUFFER_LIMIT = 20
 
-# ЕДИНОЕ РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ ДЛЯ ПОИСКА ВАЛИДНОЙ ГРАНИЦЫ
-# Оно находит конец предложения, только если он НЕ является ложным.
-# (?<!...) - "негативное заглядывание назад"
+# ЕДИНОЕ РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ
 SENTENCE_BOUNDARY_RE = re.compile(
     r"""
     (?<!\b\p{L}{1,3})              # Не должно быть короткого слова/инициала (г., ул.)
     (?<!\p{Ll}\.\p{Ll})            # НЕ должно быть "буква.буква" (файл.py)
     ([.!?…])                       # ЗАХВАТЫВАЕМ сам знак конца предложения
-    (?=\s+\p{Lu}|\s*$)             # После знака должен быть пробел или конец строки
+    (?=\s+\p{Lu}|\s*$)             # После знака должен быть пробел+Заглавная или конец строки
     """,
     re.VERBOSE | re.UNICODE
 )
 
-# Регулярные выражения для деликатной очистки
 LIST_ITEM_RE = re.compile(r"^\s*(?:(\d+)\.|([*-]))\s*(.*)", re.MULTILINE)
+
 
 def post_clean_sentence(sentence: str) -> str:
     """Применяет финальные, деликатные правила форматирования."""
@@ -55,18 +52,22 @@ class SentenceBoundaryDetector:
         self.buffer = ""
         self.held_sentence = ""
 
-    def _process_and_yield(self, sentence_text: str) -> Iterable[str]:
-        sentence = post_clean_sentence(sentence_text)
-        if not sentence:
+    def _maybe_yield(self, text: str) -> Iterable[str]:
+        """
+        Внутренняя логика накопления. 
+        Если накопили достаточно -> yield, иначе сохраняем в held_sentence.
+        """
+        cleaned = post_clean_sentence(text)
+        if not cleaned:
             return
 
         if not self.held_sentence:
-            self.held_sentence = sentence
+            self.held_sentence = cleaned
         else:
             joiner = self.held_sentence
             if joiner.endswith('.'):
                 joiner = joiner[:-1] + ','
-            self.held_sentence = f"{joiner} {sentence}"
+            self.held_sentence = f"{joiner} {cleaned}"
 
         if len(self.held_sentence) >= MERGE_BUFFER_LIMIT:
             yield self.held_sentence
@@ -77,28 +78,63 @@ class SentenceBoundaryDetector:
 
         while True:
             match = SENTENCE_BOUNDARY_RE.search(self.buffer)
+            
+            # Если разделитель не найден
             if not match:
+                # Проверка на переполнение буфера
                 if len(self.buffer) > HARD_LIMIT:
                     split_pos = self.buffer.rfind(' ', 0, HARD_LIMIT)
-                    if split_pos == -1: split_pos = HARD_LIMIT
+                    if split_pos == -1: 
+                        split_pos = HARD_LIMIT
+                    
                     sentence = self.buffer[:split_pos]
-                    yield from self._process_and_yield(sentence)
+                    yield from self._maybe_yield(sentence)
+                    
                     self.buffer = self.buffer[split_pos:]
-                    continue
-                break
+                    continue # Продолжаем искать в остатке
+                break # Ждем новых данных
 
-            sentence_end_pos = match.end(1) # Конец захваченной группы (сам разделитель)
+            # --- ЗАЩИТА ОТ ДРОБНЫХ ЧИСЕЛ ---
+            sep_char = match.group(1)
+            sep_end_pos = match.end(1)
+            sep_start_pos = match.start(1)
+
+            # Если точка в самом конце буфера И перед ней цифра
+            if (sep_char == '.' and 
+                sep_end_pos == len(self.buffer) and 
+                sep_start_pos > 0 and 
+                self.buffer[sep_start_pos - 1].isdigit()):
+                
+                # Прерываем обработку, ждем следующий чанк
+                break
+            # -------------------------------
+
+            # Стандартная обработка найденного предложения
+            sentence_end_pos = match.end(1)
             sentence = self.buffer[:sentence_end_pos]
-            yield from self._process_and_yield(sentence)
+            yield from self._maybe_yield(sentence)
+            
             self.buffer = self.buffer[sentence_end_pos:]
 
     def finish(self) -> str:
+        """
+        Завершает обработку. Возвращает остаток как строку.
+        """
+        # 1. Если что-то осталось в буфере (например "Windows 10.")
         if self.buffer:
-            sentences_from_buffer = list(self._process_and_yield(self.buffer))
-            if sentences_from_buffer:
-                return " ".join(sentences_from_buffer)
-        
+            # Просто добавляем это в накопление, не пытаясь yield-ить
+            cleaned = post_clean_sentence(self.buffer)
+            if cleaned:
+                if not self.held_sentence:
+                    self.held_sentence = cleaned
+                else:
+                    joiner = self.held_sentence
+                    if joiner.endswith('.'):
+                        joiner = joiner[:-1] + ','
+                    self.held_sentence = f"{joiner} {cleaned}"
+            self.buffer = ""
+
+        # 2. Возвращаем всё, что накопилось
         final_text = self.held_sentence
-        self.buffer = ""
         self.held_sentence = ""
         return final_text

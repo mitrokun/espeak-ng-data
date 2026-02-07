@@ -12,7 +12,7 @@ from wyoming.server import AsyncServer, AsyncTcpServer
 
 from . import __version__
 from .download import ensure_voice_exists, find_voice, get_voices
-from .handler import PiperEventHandler
+from .handler import PiperEventHandler, ENG_AVAILABLE, RUS_AVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,6 +106,16 @@ async def main() -> None:
         level=logging.DEBUG if args.debug else logging.INFO, format=args.log_format
     )
     _LOGGER.debug(args)
+
+    if ENG_AVAILABLE:
+        _LOGGER.info("English Normalizer: AVAILABLE")
+    else:
+        _LOGGER.warning("English Normalizer: NOT FOUND. Install `eng_to_ipa`")
+
+    if RUS_AVAILABLE:
+        _LOGGER.info("Russian Normalizer: AVAILABLE")
+    else:
+        _LOGGER.warning("Russian Normalizer: NOT FOUND. Install `num2words`")
 
     accentor = None
     if not args.no_automatic_stress:

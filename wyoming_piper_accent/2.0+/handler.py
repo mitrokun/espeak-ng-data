@@ -7,7 +7,6 @@ import regex as re
 from typing import Any, Dict, Optional, Set
 
 from piper import PiperVoice, SynthesisConfig
-from .sentence_boundary import SentenceBoundaryDetector
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.error import Error
 from wyoming.event import Event
@@ -21,20 +20,27 @@ from wyoming.tts import (
     SynthesizeStopped,
 )
 
+from .sentence_boundary import SentenceBoundaryDetector
 from .download import ensure_voice_exists, find_voice
 
 _LOGGER = logging.getLogger(__name__)
 
-# --- Опциональный импорт английского нормализатора ---
 try:
     from .english_normalizer import EnglishNormalizer
-    ENG_TO_IPA_AVAILABLE = True
+    ENG_AVAILABLE = True
 except ImportError:
     EnglishNormalizer = None
-    ENG_TO_IPA_AVAILABLE = False
+    ENG_AVAILABLE = False
+
+try:
+    from .russian_normalizer import RussianNormalizer
+    RUS_AVAILABLE = True
+except ImportError:
+    RussianNormalizer = None
+    RUS_AVAILABLE = False
 
 
-# --- Логика расстановки ударений ---
+# --- ЛОГИКА УДАРЕНИЙ ---
 
 _CORRECTION_WORDS: Set[str] = set([
     "адреса", "алое", "атлас", "беды", "белкa", "белки", "белок",
@@ -44,10 +50,9 @@ _CORRECTION_WORDS: Set[str] = set([
     "войска", "волны", "ворона", "ворот", "ворота",
     "временная", "временное", "временные", "временным", "временных", "временными",
     "временной", "временную", "временного", "временному", "временном",
-    "выходить",
-    "гвоздик", "главы", "глаза", "глотка", "глоток", "глотку",
+    "выходить", "гвоздик", "главы", "глаза", "глотка", "глоток", "глотку",
     "глубины", "глубоко", "гнезда", "года", "головы", "голоса",
-    "гоним", "горе", "города", "горе", "горы", "господа", "графа",
+    "гоним", "горе", "города", "горы", "господа", "графа",
     "грозы", "гроши", "груди", "дела", "доктора", "дома",
     "дорог", "дороги", "дорогой", "другом", "духи", "душа",
     "души", "дыбы", "еду", "жаркое", "жару", "жила",
@@ -68,9 +73,9 @@ _CORRECTION_WORDS: Set[str] = set([
     "пола", "полки", "полосы", "полосу", "полу", "полы", "поля",
     "полюса", "помеси", "попадал", "пора", "поручи", "постели",
     "потерпите", "поту", "пошло", "привод", "пристав", "пристань",
-    "проводами", "пропасть", "проруби", "просите", "простынь", "просыпался", "пряди",
-    "пылу", "реки", "рога", "родами", "руки", "ружья", "саду",
-    "самого", "самой", "самому", "сахара", "сбегать", "сведение",
+    "проводами", "прокрутите", "пропасть", "проруби", "просите", "простынь",
+    "пылу", "реки", "рога", "родами", "руки", "рубите", "ружья", "саду",
+    "просыпался", "пряди", "самого", "самом", "самой", "самому", "сахара", "сбегать", "сведение",
     "свечи", "связи", "сели", "село", "семьи", "сестры",
     "синее", "скачка", "скачками", "слез", "слезу", "слова",
     "смычка", "содержим", "сорок", "сорока", "соска", "соски",
@@ -81,7 +86,7 @@ _CORRECTION_WORDS: Set[str] = set([
     "трусы", "туши", "тюрьмы", "угольный", "уже", "уха",
     "учителя", "хлопок", "хлопком", "хлопока", "холода", "хоры",
     "хромом", "цвета", "целую", "цепи", "чайку", "часу",
-    "чека", "числа", "чудное", "широты"
+    "чека", "честном", "числа", "чудное", "широты"
 ])
 
 _STRESS_MARK = "\u0301"
@@ -107,7 +112,7 @@ def preprocess_text_for_stress(text: str, accentor: Optional[Any], user_marker: 
         stressed_parts = re.split(split_pattern, text_with_silero_stress)
 
         if len(original_parts) != len(stressed_parts):
-            _LOGGER.warning("Text splitting mismatch. Using Silero's full output.")
+            _LOGGER.warning("Text splitting mismatch. Using Silero output.")
             return text_with_silero_stress
 
         final_parts = [
@@ -117,19 +122,17 @@ def preprocess_text_for_stress(text: str, accentor: Optional[Any], user_marker: 
             for orig_part, stressed_part in zip(original_parts, stressed_parts)
         ]
         text_with_markers = "".join(final_parts)
-
     except Exception:
-        _LOGGER.exception("Error during selective stress application. Using original text.")
         text_with_markers = text
 
     stress_pattern = re.compile(re.escape(user_marker) + f"([{_RUSSIAN_VOWELS}])")
     parts = re.split(f'([\\s{re.escape(".,!?-")}]+)', text_with_markers)
     final_unicode_parts = []
+    
     for part in parts:
         if not part or part.isspace() or part in ".,!?-":
             final_unicode_parts.append(part)
             continue
-
         if stress_pattern.search(part):
             word = part
             clean_word = word.replace(user_marker, "")
@@ -140,11 +143,10 @@ def preprocess_text_for_stress(text: str, accentor: Optional[Any], user_marker: 
                 final_unicode_parts.append(processed_word)
         else:
             final_unicode_parts.append(part)
-
     return "".join(final_unicode_parts)
 
 
-# --- Глобальные переменные для кеширования голоса ---
+# --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (VOICE CACHE) ---
 _VOICE: Optional[PiperVoice] = None
 _VOICE_NAME: Optional[str] = None
 _VOICE_LOCK = asyncio.Lock()
@@ -162,24 +164,39 @@ class PiperEventHandler(AsyncEventHandler):
         self.sbd = SentenceBoundaryDetector()
         self._synthesize: Optional[Synthesize] = None
 
-        if ENG_TO_IPA_AVAILABLE and EnglishNormalizer:
-            self.eng_normalizer = EnglishNormalizer()
-            _LOGGER.debug("English-to-Russian normalizer is enabled.")
-        else:
-            self.eng_normalizer = None
-            _LOGGER.warning("`eng-to-ipa` library not found. English-to-Russian normalizer is disabled. Run `pip install eng-to-ipa` to enable it.")
+        # Создаем экземпляры нормализаторов, если модули доступны
+        self.eng_normalizer = EnglishNormalizer() if ENG_AVAILABLE else None
+        self.rus_normalizer = RussianNormalizer() if RUS_AVAILABLE else None
 
     async def _process_and_synthesize(self, sentence: str, synthesize_obj: Synthesize):
         if not sentence.strip():
             return
 
+        current_text = sentence
+        _LOGGER.debug(f"[RAW] {current_text}")
+
+        # 1. Английская нормализация
         if self.eng_normalizer:
-            sentence = self.eng_normalizer.normalize(sentence)
+            transformed = self.eng_normalizer.normalize(current_text)
+            if transformed != current_text:
+                current_text = transformed
+                _LOGGER.debug(f"[ENG] {current_text}")
 
-        stressed_sentence = preprocess_text_for_stress(sentence, self.accentor)
-        _LOGGER.debug(f"Final text for synthesis: {stressed_sentence}")
+        # 2. Русская нормализация (дроби, проценты)
+        if self.rus_normalizer:
+            transformed = self.rus_normalizer.normalize(current_text)
+            if transformed != current_text:
+                current_text = transformed
+                _LOGGER.debug(f"[RUS] {current_text}")
 
-        synthesize_obj.text = stressed_sentence
+        # 3. Расстановка ударений
+        transformed = preprocess_text_for_stress(current_text, self.accentor)
+        if transformed != current_text:
+            current_text = transformed
+            _LOGGER.debug(f"[STR] {current_text}")
+
+        # Финальная отправка в синтезатор
+        synthesize_obj.text = current_text
         await self._handle_synthesize(synthesize_obj, send_stop=False)
 
     async def handle_event(self, event: Event) -> bool:

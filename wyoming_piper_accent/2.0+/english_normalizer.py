@@ -22,9 +22,9 @@ class EnglishNormalizer:
         "samsung": "самсунг", "toyota": "тойота", "volkswagen": "фольцваген",
         "coca": "кока", "cola": "кола", "pepsi": "пэпси", "whatsapp": "вотсап",
         "telegram": "телеграм", "youtube": "ютуб", "instagram": "инстаграм",
-        "facebook": "фэйсбук", "twitter": "твиттер", "iphone": "айфон",
+        "facebook": "фэйсбук", "twitter": "твиттер", "iphone": "айф+он",
         "tesla": "тесла", "spacex": "спэйс икс", "amazon": "амазон",
-        "python": "пайтон", "AI": "эй+ай", "api": "эйпиай",
+        "python": "пайтон", "AI": "эй+ай", "api": "эйпиай", "glados": "гл+адос",
         "IT": "+ай т+и", "Wi-Fi": "вай фай", "RTX": "эрте+икс", "nasa": "н+аса",
         # Ё
         "work": "ворк", "world": "ворлд", "bird": "бёрд",
