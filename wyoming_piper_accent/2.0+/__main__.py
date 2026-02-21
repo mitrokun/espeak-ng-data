@@ -87,6 +87,12 @@ async def main() -> None:
         action="store_true",
         help="Use CUDA if available (requires onnxruntime-gpu)",
     )
+    parser.add_argument(
+        "--max-cached-voices",
+        type=int,
+        default=1,
+        help="Maximum number of voices to keep loaded in memory (default: 1)",
+    )
     parser.add_argument("--debug", action="store_true", help="Log DEBUG messages")
     parser.add_argument(
         "--log-format", default=logging.BASIC_FORMAT, help="Format for log messages"

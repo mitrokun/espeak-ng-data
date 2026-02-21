@@ -99,4 +99,4 @@ class EnglishNormalizer:
 
     def normalize(self, text: str) -> str:
         """Находит в тексте английские слова, включая сокращения, и заменяет их на русское произношение."""
-        return re.sub(r"\b[a-zA-Z]+(?:['’][a-zA-Z]+)*\b", self._transliterate_word, text)
+        return re.sub(r"\b[a-zA-Z]+(?:[-'’][a-zA-Z]+)*\b", self._transliterate_word, text)
