@@ -1,0 +1,795 @@
+phoneme b;
+  vcd blb stp pzd  pal
+  ipa bʲ
+  lengthmod 5
+  voicingswitch p;
+
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=100 colr=1
+
+  IF PreVoicing THEN
+    FMT(b/xb)
+  ENDIF
+  IF nextPh(isPause2) THEN
+    FMT(b/b_) addWav(x/b_)
+  ELSE
+    FMT(b/b) addWav(x/b)
+  ENDIF
+endphoneme
+
+
+phoneme v;
+  vcd lbd frc pzd pal
+  ipa vʲ
+  lengthmod 6
+  voicingswitch f;
+
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=100 colr=1
+
+  IF nextPh(isPause2) THEN
+    FMT(voc/v_) addWav(vocw/v)
+  ELSE
+    FMT(voc/v) addWav(vocw/v)
+  ENDIF
+endphoneme
+
+
+phoneme g
+  vcd vel stp prevoice
+  voicingswitch k
+  lengthmod 5
+  Vowelin f1=2  f2=2300 200 300  f3=-300 80
+  Vowelout f1=2  f2=2300 250 300  f3=-300 80 brk
+
+  IF PreVoicing THEN
+    FMT(g/xg)
+  ENDIF
+
+  IF nextPh(isPause2) THEN
+    FMT(g/g_) addWav(x/g_)
+  ENDIF
+  FMT(g/g) addWav(x/g3, 90)
+endphoneme
+
+
+phoneme g;
+  vcd vel stp pzd pal
+  ipa gʲ
+  lengthmod 5
+  voicingswitch k;
+
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=100 colr=1
+
+  IF PreVoicing THEN
+    FMT(g/xg)
+  ENDIF
+  IF nextPh(isPause2) THEN
+    FMT(g/g_) addWav(x/g_)
+  ELSE
+    FMT(g/g) addWav(x/g2, 150)
+  ENDIF
+endphoneme
+
+
+phoneme d
+  import_phoneme pl/d
+endphoneme
+
+
+phoneme d;
+  vcd alv stp pzd pal
+  ipa dʲ
+  lengthmod 5
+  voicingswitch t;
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=100 colr=1
+
+  IF PreVoicing THEN
+    FMT(d/xd_pzd)
+  ENDIF
+
+  IF nextPh(isPause2) THEN
+    FMT(d/d_) addWav(x/d_pzd, 40)
+  ELIF nextPh(isRhotic) THEN
+    FMT(d/dr) addWav(x/d_pzd, 80)
+  ENDIF
+
+  FMT(d/d) addWav(x/d_pzd, 80)
+endphoneme
+
+
+phoneme dZ;
+  vcd alp sib afr
+  ipa dʑ
+  voicingswitch tS;
+  lengthmod 5
+  Vowelin f1=2  f2=2700 400 600  f3=300 80 rate len=70
+
+  IF PreVoicing THEN
+    FMT(dzh/xdzh)
+  ENDIF
+
+  IF nextPh(isPause2) THEN
+    FMT(dzh/dzh_) addWav(x/dzh_)
+  ENDIF
+endphoneme
+
+
+phoneme z;
+  vcd alv sib frc pzd pal 
+  ipa zʲ 
+  voicingswitch s;
+  lengthmod 6
+  
+  Vowelin  f1=2  f2=2700 400 600  f3=200 70 rate len=70
+  Vowelout f1=2  f2=2700 400 600  f3=200 70 rate len=70
+
+  IF nextPh(isPause2) THEN
+    FMT(voc/z_pzd_) addWav(ufric/s_pzd_, 80)
+  ENDIF
+  FMT(voc/z_pzd) addWav(ufric/s_pzd, 80)
+endphoneme
+
+
+phoneme k
+  import_phoneme consonants/k-
+endphoneme
+
+
+phoneme k;
+  vls vel stp pzd pal
+  ipa kʲ
+  lengthmod 2
+  voicingswitch g;
+
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 len=50 colr=1
+  
+  IF nextPh(isPause2) THEN
+    WAV(ustop/k_)
+  ELSE
+    WAV(ustop/ki)
+  ENDIF
+endphoneme
+
+
+phoneme L
+  liquid lat apr alv vzd vcd //  Веляризованная /л/
+  ipa ɫ
+  lengthmod 7
+  length 40
+  IF nextPh(isNotVowel) THEN
+    VowelEnding(ll/xll, -40)  // 'dark' /ɫ/ перед согласными
+  ENDIF
+  IF prevPh(isPause) THEN
+    FMT(ll/_ll)
+  ELSE
+    FMT(ll/ll)
+  ENDIF
+endphoneme
+
+
+phoneme l
+  liquid lat apr alv vzd vcd
+  ipa ɫ
+  lengthmod 7
+  length 40
+  FMT(ll/ll)
+endphoneme
+
+phoneme l^
+  liquid lat apr alv vzd vcd lng
+  ipa ɫː
+  lengthmod 7
+  length 80
+  FMT(ll/ll)
+endphoneme
+
+phoneme l;
+  liquid pzd pal
+  ipa lʲ
+  lengthmod 7
+
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=70 colr=1
+
+  FMT(l/l)
+endphoneme
+
+
+phoneme m;
+  vcd blb nas pzd pal
+  ipa mʲ
+  Vowelout f1=2  f2=1000 -500 -350  f3=-200 80 brk
+  lengthmod 4
+
+  IF KlattSynth THEN
+    Vowelin  f1=0  f2=1000 -50 -200  f3=-200 80
+    IF nextPh(isPause2) THEN
+      FMT(klatt/m_)
+    ENDIF
+    FMT(klatt/m)
+  ENDIF
+
+  VowelStart(m/mi)
+
+  FMT(m/mj)
+endphoneme
+
+
+phoneme n;
+  vcd alv nas pzd pal
+  ipa nʲ 
+  voicingswitch t;
+  lengthmod 3
+  length 100
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=70 colr=1
+
+  IF prevPh(isPause) THEN
+    FMT(n^/_n^)
+  ELIF nextPh(isNotVowel) THEN
+    FMT(n^/n^_)
+  ELSE
+    FMT(n^/n^_)
+  ENDIF
+endphoneme
+
+
+phoneme n_
+  import_phoneme en/n
+endphoneme
+
+
+phoneme n#
+  vcd pal nas pzd
+  ipa ɲ
+  Vowelout f1=3 f2=2500 300 500  f3=100 80  len=45 brk rate
+  lengthmod 4
+
+  IF KlattSynth THEN
+    VowelStart(klatt/n^@)
+    FMT(klatt/n^)
+  ENDIF
+
+  NextVowelStarts
+    VowelStart(n^/n^@)
+    VowelStart(n^/n^a)
+    VowelStart(n^/n^e)
+    VowelStart(n^/n^i)
+    VowelStart(n^/n^o)
+    VowelStart(n^/n^u)
+  EndSwitch
+
+  IF prevPh(isPause) THEN
+    FMT(n^/_n^)
+  ELIF nextPh(isNotVowel) THEN
+    IF nextPhW(n^) THEN
+      length 75
+    ELIF prevPhW(n^) THEN
+      length 100
+    ENDIF
+    FMT(n^/n^_)
+  ENDIF
+endphoneme
+
+
+phoneme p
+  import_phoneme consonants/p-
+endphoneme
+
+
+phoneme p;
+  vls blb stp pzd  pal
+  ipa pʲ
+  lengthmod 2
+  voicingswitch b;
+
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 len=50 colr=1
+
+  IF nextPh(isPause2) THEN
+    WAV(ustop/p_)
+  ELSE
+    WAV(ustop/p)
+  ENDIF
+endphoneme
+
+
+phoneme r
+  liquid rhotic alv trl nolink
+  length 80
+  IF prevPhW(isVowel) THEN
+  ELSE
+    InsertPhoneme(@-)
+  ENDIF
+  FMT(r3/r_trill,80) addWav(r3/r_trill.wav, 50)
+endphoneme
+
+
+phoneme r;
+  liquid rhotic alv trl pzd pal
+  ipa rʲ
+  length 80
+  FMT(r3/r_trill,80) addWav(r3/r_trill.wav, 50)
+endphoneme
+
+
+phoneme s
+  vls alv frc sib
+  lengthmod 3
+
+  Vowelin  f1=0  f2=1700 -300 300  f3=-100 80
+  Vowelout f1=0  f2=1700 -300 250  f3=-100 80  rms=20
+ 
+  WAV(ufric/s)
+endphoneme
+
+phoneme s;
+  vls alv frc sib pzd pal
+  ipa sʲ
+  voicingswitch z;
+  lengthmod 3
+  Vowelin  f1=1  f2=2700 400 600  f3=200 70 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 rate len=70
+
+  IF nextPh(isPause) THEN
+    WAV(ufric/s_pzd_)
+  ENDIF
+  WAV(ufric/s_pzd)
+endphoneme
+
+
+phoneme t;
+  vls alv stp pzd pal
+  ipa tʲ
+  lengthmod 2
+  voicingswitch d;
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 len=50 colr=1
+  IF nextPh(isPause2) THEN
+    WAV(ustop/t_pzd, 30)
+  ENDIF
+  WAV(ustop/t_pzd, 60)
+endphoneme
+
+
+phoneme f
+  vls lbd frc
+  // voicingswitch v
+  lengthmod 3
+  Vowelout f1=0  f2=1000 -500 -350  f3=-200 80
+  IF nextPh(isPause) THEN
+    WAV(ufric/f_)
+  ENDIF
+  WAV(ufric/f)
+endphoneme
+
+
+phoneme f;
+  vls lbd frc pzd  pal
+  ipa fʲ
+  lengthmod 3
+  voicingswitch v;
+
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 len=50 colr=1
+
+  IF nextPh(isPause) THEN
+    WAV(ufric/f_)
+  ELSE
+    WAV(ufric/f)
+  ENDIF
+endphoneme
+
+
+phoneme x
+  vls vel frc
+  lengthmod 3
+  Vowelin f1=0  f2=2300 200 400  f3=-100 80
+  Vowelout f1=0 f2=2300 300 400  f3=-100 80  rms=20
+  WAV(ufric/x_hr, 30)
+endphoneme
+
+
+phoneme x;
+  vls vel frc pzd pal
+  ipa xʲ
+  lengthmod 3
+  voicingswitch g;
+
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 len=50 colr=1
+  
+  // Для звука можно использовать звук 'хь' - он же немецкий 'ich-laut', который у вас есть как 'C'
+  IF nextPh(isPause) THEN
+    WAV(ufric/ch_)
+  ELSE
+    WAV(ufric/ch)
+  ENDIF
+endphoneme
+
+
+phoneme S;
+  vls alp sib frc pzd pal
+  ipa ɕː 
+  voicingswitch Z;
+  lengthmod 8
+  
+  Vowelin  f1=1  f2=2700 400 600  f3=200 70 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 rate len=70
+
+  IF nextPh(isPause) THEN
+    WAV(ufric/sh_pzd_)
+  ELSE
+    WAV(ufric/sh_pzd)
+  ENDIF
+endphoneme
+
+
+phoneme ts
+  import_phoneme consonants/ts
+endphoneme
+
+
+phoneme tS;
+  vls alp sib afr pal
+  ipa tɕ
+  voicingswitch dZ;
+  lengthmod 2
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+
+  WAV(ustop/ts_pzd)
+endphoneme
+
+
+// Palatalized versions of consonants
+
+phoneme I^ // "silent i", palatilizes the preceding consonant
+  vwl starttype #i endtype #i
+  unstressed nsy
+  length 70
+  IF nextPh(isVowel) THEN
+    ChangePhoneme(;)
+  ENDIF
+  IF prevPh(m;) THEN
+    FMT(vwl_ro/mi)
+  ENDIF
+  FMT(vwl_ru/ii-)
+endphoneme
+
+
+//*******************************************************************
+// VOWELS
+//*******************************************************************
+
+
+phoneme i
+  IF prevPh(Z) THEN
+    ChangePhoneme(y)
+  ENDIF
+  vwl starttype #i endtype #i
+  length 50
+  FMT(vwl_ru/ii)
+endphoneme
+
+
+phoneme I#
+  vwl starttype #i endtype #i
+  length 80
+  IF nextVowel(isMaxStress) THEN
+    ChangePhoneme(I)
+  ENDIF
+  IF thisPh(isMaxStress) THEN
+    ChangePhoneme(i)
+  ENDIF
+  FMT(vwl_ru/ii#)
+endphoneme
+
+
+phoneme y
+  vwl starttype #i endtype #i
+  length 100
+  FMT(vwl_ru/i#)
+endphoneme
+
+
+phoneme I
+  vwl starttype #i endtype #i
+  length 80
+  FMT(vwl_ru/ii)
+endphoneme
+
+
+phoneme I2
+  vwl starttype #i endtype #i
+  length 80
+  IF thisPh(isMaxStress) THEN
+    ChangePhoneme(e)
+  ENDIF
+  IF prevPhW(isPalatal) THEN
+    ChangePhoneme(I)
+  ENDIF
+  FMT(vwl_ru/ii)
+endphoneme
+
+
+phoneme I3
+  vwl starttype #i endtype #i
+  length 80
+  IF thisPh(isMaxStress) THEN
+    IF prevPhW(j) THEN
+      ChangePhoneme(e)
+    ELSE
+      ChangePhoneme(ja)
+    ENDIF
+  ENDIF
+  IF prevPhW(isPalatal) THEN
+    ChangePhoneme(I)
+  ENDIF
+  FMT(vwl_ru/ii)
+endphoneme
+
+
+phoneme E
+  vwl  starttype #e  endtype #e
+  length 100
+  FMT(vwl_ru/e)
+endphoneme
+
+
+phoneme E#
+  vwl  starttype #e  endtype #e
+  length 100
+  IF thisPh(isMaxStress) THEN
+    IF prevPhW(j) THEN
+      ChangePhoneme(e)
+    ELSE
+      ChangePhoneme(E)
+    ENDIF
+  ENDIF
+  FMT(vwl_ru/E#)
+endphoneme
+
+
+phoneme E2
+  vwl  starttype #e  endtype #e
+  length 80
+  IF nextVowel(isMaxStress) THEN
+    IF prevPh(j) THEN
+      ChangePhoneme(I3)
+    ELSE
+      ChangePhoneme(E#)
+    ENDIF
+  ENDIF
+
+  IF thisPh(isMaxStress) THEN
+    IF prevPhW(j) THEN
+      ChangePhoneme(e)
+    ELSE
+      ChangePhoneme(E)
+    ENDIF
+  ENDIF
+
+  FMT(vwl_ru/E@)
+endphoneme
+
+
+phoneme E3
+  vwl  starttype #e  endtype #e
+  length 80
+  IF nextVowel(isMaxStress) THEN
+    ChangePhoneme(I)
+  ENDIF
+  IF thisPh(isMaxStress) THEN
+    ChangePhoneme(e)
+  ENDIF
+  IF prevPhW(isPalatal) THEN
+    ChangePhoneme(E2)
+  ENDIF
+  FMT(vwl_ru/E@)
+endphoneme
+
+phoneme E%  // е in prefix "интер"
+  vwl
+  ChangePhoneme(E#)
+endphoneme
+
+
+phoneme o
+  vwl starttype #o endtype #o
+  length 100
+  ChangeIfNotStressed(V)
+  FMT(vwl_ru/o)
+endphoneme
+
+
+phoneme O
+  vwl starttype #o endtype #o
+  length 80
+  IF prevPhW(isPalatal) THEN
+    ChangePhoneme(8)
+  ENDIF
+  IF thisPh(isMaxStress) THEN
+    ChangePhoneme(o)
+  ENDIF
+  FMT(vwl_ru/oo)
+endphoneme
+
+
+phoneme u
+  vwl starttype #u endtype #u
+  length 80
+  FMT(vwl_ru/u)
+endphoneme
+
+
+phoneme u#
+  vwl starttype #u endtype #u
+  length 80
+  FMT(vwl_ru/u#)
+endphoneme
+
+
+phoneme u"
+  vwl starttype #u endtype #u
+  length 150
+  FMT(vwl_ru/u#u)
+endphoneme
+
+
+phoneme 8
+  vwl starttype #o endtype #o
+  length 100
+  ChangeIfNotStressed(V)
+  FMT(vwl_ru/8)
+endphoneme
+
+
+phoneme e
+  vwl starttype #e endtype #e
+  length 120
+  IF prevPh(r;) THEN
+    // Ничего не делать: /e/ остаётся /e/ после r;
+  ELIF prevPh(ts) THEN
+    ChangePhoneme(E)
+  ELIF prevPh(Z) THEN
+    ChangeIfNotStressed(y)
+    ChangePhoneme(E)
+  ELIF prevPh(S) THEN
+    ChangeIfNotStressed(y)
+    ChangePhoneme(E)
+  ELSE
+    ChangeIfNotStressed(i)
+  ENDIF
+  FMT(vwl_ru/ee)
+endphoneme
+
+
+phoneme ju
+  vwl starttype #u endtype #u
+  length 190
+  FMT(vwl_ru/ju)
+endphoneme
+
+
+phoneme ja
+  vwl  starttype #i endtype #a
+  IF thisPh(isMaxStress) THEN
+    length 200
+    FMT(vwl_ru/ja)
+  ELSE
+    FMT(vdiph2/ii@)
+  ENDIF
+endphoneme
+
+
+phoneme ja#
+  vwl  starttype #i endtype #a
+  IF thisPh(isMaxStress) THEN
+    FMT(vowel/&)
+  ELSE
+    IF prevPhW(isPalatal) THEN
+    ChangePhoneme(I)
+    ENDIF
+  ENDIF
+endphoneme
+
+
+phoneme V#
+  vwl  starttype #a  endtype #@
+  unstressed
+  length 80
+
+  IF thisPh(isMaxStress) THEN
+    IF prevPhW(j) THEN
+      ChangePhoneme(A)
+    ENDIF
+  ENDIF
+
+  IF prevPhW(isPalatal) THEN
+    ChangePhoneme(V)
+  ENDIF
+  FMT(vowel/V_2)
+endphoneme
+
+
+phoneme Y // will not be used in future
+  vwl  starttype #u  endtype #u
+  unstressed
+  length 140
+  FMT(vowel/ii#)
+endphoneme
+
+
+phoneme A
+  vwl  starttype #a  endtype #a
+  length 100
+  FMT(vwl_ru/a)
+endphoneme
+
+
+phoneme a
+  vwl   starttype #a  endtype #a
+  length 100
+
+  IF prevPhW(j) THEN
+  ELSE
+    IF thisPh(isMaxStress) THEN
+      IF prevPhW(isPalatal) THEN
+        ChangePhoneme(a)
+      ELSE
+        ChangePhoneme(A)
+      ENDIF
+    ELSE
+      IF prevPhW(isPalatal) THEN
+        ChangePhoneme(I)
+    ENDIF
+    ENDIF
+  ENDIF
+
+  IF thisPh(isWordEnd) THEN
+    FMT(vowel/a#_3)
+  ENDIF
+  FMT(vwl_ru/aa)
+endphoneme
+
+
+phoneme V
+  vwl  starttype #a  endtype #@
+  length 80
+  unstressed
+
+  IF nextVowel(isMaxStress) THEN
+    ChangePhoneme(a)
+  ENDIF
+
+  IF thisPh(isMaxStress) THEN
+    IF prevPhW(j) THEN
+      ChangePhoneme(a)
+    ELSE
+      ChangePhoneme(A)
+    ENDIF
+  ENDIF
+
+  FMT(vowel/V_2)
+endphoneme
+
+
+phoneme a#
+  vwl   starttype #a  endtype #a
+  length 100
+  FMT(vowel/a#_3)
+endphoneme
+
+
+phoneme R4
+  liquid
+  lengthmod 6
+  Vowelin  f1=0  f2=1500 -300 300  f3=-200 80 rms=60 brk
+  Vowelout f1=2  f2=1500 -300 300  f3=-200 80
+  FMT(r3/r_ru2) addWav(r3/r_ru, 50)
+endphoneme
+
