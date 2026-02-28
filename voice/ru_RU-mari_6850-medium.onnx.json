@@ -2,6 +2,9 @@
   "audio": {
     "sample_rate": 22050
   },
+  "language": {
+    "code": "ru-RU"
+  },
   "espeak": {
     "voice": "ru"
   },
@@ -499,5 +502,6 @@
     ]
   },
   "speaker_id_map": {},
+  "hop_length": 256,
   "piper_version": "1.3.0"
 }
