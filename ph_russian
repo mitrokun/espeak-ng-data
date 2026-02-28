@@ -691,6 +691,16 @@ phoneme e
 endphoneme
 
 
+phoneme e#
+  vwl starttype #e endtype #e
+  ipa e
+  length 70
+  unstressed
+
+  FMT(vwl_ru/ee)
+endphoneme
+
+
 phoneme ju
   vwl starttype #u endtype #u
   length 190
