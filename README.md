@@ -49,10 +49,12 @@ cp -r ./espeak-ng-data/espeak-ng-data/* ./.venv/lib/python3.12/site-packages/pip
 # Модификация кода
 cp -r ./espeak-ng-data/wyoming_piper_accent/2.0+/* ./wyoming_piper/
 
-# Запуск ( использую data в домашнем каталоге, скопируйте туда свои голоса)
-# существующий голос для теста cp ./espeak-ng-data/voice/ru_RU-mari_6850-medium* ~/data/
+# Запуск (использую data в домашнем каталоге)
+# В качестве примера копируем существующую модель (обучена на актуальных данных) из этого репозитория
+cp ./espeak-ng-data/voice/ru_RU-mari_v2-medium* ~/data/
+
 ./script/run \
-    --voice ru_RU-maria-medium \
+    --voice ru_RU-mari_v2-medium_epoch6449 \
     --uri 'tcp://0.0.0.0:10200' \
     --data-dir ~/data \
     --download-dir ~/data
