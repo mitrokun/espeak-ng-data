@@ -25,7 +25,7 @@ upd 03.2026 Сделал второй заход по правке фонем, �
 
 В voice примеры голосов, дообученные на небольших датасетах
 
-В каталоге wyoming_piper_accent лежат мои изыскания по разрешению омографов (список задан в `handler.py`) в wyoming piper (сервер для Home Assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака `+`. Телодвижения имеют смысл, если у вас есть свои тюны голосов. Как делать - рассказал в этом [видео](https://www.youtube.com/watch?v=zpWIUzaNHfw).
+В каталоге wyoming_piper_accent лежат мои изыскания по разрешению омографов (список задан в `handler.py`) в wyoming piper (сервер для Home Assistant) с помощью библиотеки [silero stress](https://github.com/snakers4/silero-stress). Также появляется возможность ручной расстановки ударений с помощью знака `+`. Для отключения авторассановки предусмотрен ключ `--no-automatic-stress`. Телодвижения имеют смысл, если у вас есть свои тюны голосов. Как делать - рассказал в этом [видео](https://www.youtube.com/watch?v=zpWIUzaNHfw). 
 
 ### микрогайд
 ```
@@ -61,3 +61,4 @@ cp ./espeak-ng-data/voice/ru_RU-mari_v2-medium* ~/data/
     --download-dir ~/data
 
 ```
+
