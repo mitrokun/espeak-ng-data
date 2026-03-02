@@ -51,7 +51,7 @@ cp -r ./espeak-ng-data/wyoming_piper_accent/2.0+/* ./wyoming_piper/
 
 # Запуск (использую data в домашнем каталоге)
 # В качестве примера копируем существующую модель (обучена на актуальных данных) из этого репозитория
-cp ./espeak-ng-data/voice/ru_RU-mari_v2-medium* ~/data/
+cp ./voice/ru_RU-mari_v2-medium* ~/data/
 
 ./script/run \
     --voice ru_RU-mari_v2-medium_epoch6449 \
