@@ -685,7 +685,11 @@ phoneme e
     ChangeIfNotStressed(y)
     ChangePhoneme(E)
   ELSE
-    ChangeIfNotStressed(i)
+    IF thisPh(isWordEnd) THEN
+      ChangeIfNotStressed(e)
+    ELSE
+      ChangeIfNotStressed(I)
+    ENDIF
   ENDIF
   FMT(vwl_ru/ee)
 endphoneme
@@ -710,12 +714,28 @@ endphoneme
 
 phoneme ja
   vwl  starttype #i endtype #a
+
+  // ПРОВЕРКА ДЛЯ ИКАНЬЯ (середина слова)
+  IF NOT thisPh(isWordEnd) THEN
+    // Если это не конец слова — принудительно пробуем сменить на jI
+    ChangeIfUnstressed(jI)
+  ENDIF
+
+  // ЛОГИКА ДЛЯ УДАРНЫХ И КОНЦОВ СЛОВ
   IF thisPh(isMaxStress) THEN
     length 200
     FMT(vwl_ru/ja)
   ELSE
+    // Сюда попадут безударные концы слов (баня, гостья, статуя)
     FMT(vdiph2/ii@)
   ENDIF
+endphoneme
+
+
+phoneme jI
+  vwl starttype #i endtype #i
+  length 110
+  FMT(vdiph/ii)
 endphoneme
 
 
