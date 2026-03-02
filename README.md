@@ -44,14 +44,15 @@ script/setup
 # Скачиваем репо для замены данных
 git clone https://github.com/mitrokun/espeak-ng-data.git
 
-# файлы правил и реализация ударений. Существующие 4 голоса перестанут корректно работать.
+# Файлы фонем и словарей. Существующие 4 голоса перестанут корректно работать
+# Проверьте используемую версию python, при необходимости измените путь
 cp -r ./espeak-ng-data/espeak-ng-data/* ./.venv/lib/python3.12/site-packages/piper/espeak-ng-data/
 # Модификация кода
 cp -r ./espeak-ng-data/wyoming_piper_accent/2.0+/* ./wyoming_piper/
 
 # Запуск (использую data в домашнем каталоге)
 # В качестве примера копируем существующую модель (обучена на актуальных данных) из этого репозитория
-cp ./voice/ru_RU-mari_v2-medium* ~/data/
+cp ./espeak-ng-data/voice/ru_RU-mari_v2-medium* ~/data/
 
 ./script/run \
     --voice ru_RU-mari_v2-medium_epoch6449 \
