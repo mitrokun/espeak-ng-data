@@ -118,6 +118,22 @@ phoneme d;
 endphoneme
 
 
+phoneme d^
+  vcd dnt stp lng
+  ipa dː
+  length 160
+  FMT(d/d)
+endphoneme
+
+
+phoneme d;^
+  vcd pal dnt stp lng
+  ipa dʲː
+  length 160
+  FMT(d/d)
+endphoneme
+
+
 phoneme dZ;
   vcd alp sib afr
   ipa dʑ
@@ -146,10 +162,55 @@ phoneme Z
 endphoneme
 
 
+phoneme Z^
+  vcd rfx frc sib lng
+  ipa ʐː
+  length 190
+  lengthmod 6
+  Vowelin  f1=0  f2=1600 -200 300  f3=-200 80
+  Vowelout f1=2  f2=1600 -200 250  f3=-100 80
+  FMT(voc/zh) addWav(vocw/zh)
+endphoneme
+
+
 phoneme z;
   vcd alv sib frc pzd pal 
   ipa zʲ 
   voicingswitch s;
+  lengthmod 6
+  
+  Vowelin  f1=2  f2=2700 400 600  f3=200 70 rate len=70
+  Vowelout f1=2  f2=2700 400 600  f3=200 70 rate len=70
+
+  IF nextPh(isPause2) THEN
+    FMT(voc/z_pzd_) addWav(ufric/s_pzd_, 80)
+  ENDIF
+  FMT(voc/z_pzd) addWav(ufric/s_pzd, 80)
+endphoneme
+
+
+phoneme z^
+  vcd alv frc sib lng
+  ipa zː
+  length 180
+  lengthmod 6
+  Vowelout f1=0  f2=1700 -300 300  f3=-100 60  len=50
+
+  IF KlattSynth THEN
+    Vowelin f1=0 f2=1390 -300 300 f3=0 0
+    Vowelout f1=1  f2=1390 -300 300  f3=-100 60  len=50 brk
+  ENDIF
+
+  IF nextPh(isPause2) THEN
+    FMT(voc/z_) addWav(ufric/s_, 70)
+  ENDIF
+  FMT(voc/z) addWav(ufric/s_, 85)
+endphoneme
+
+
+phoneme z;^
+  vcd pal frc sib lng
+  ipa zʲː
   lengthmod 6
   
   Vowelin  f1=2  f2=2700 400 600  f3=200 70 rate len=70
@@ -248,6 +309,22 @@ phoneme m;
 endphoneme
 
 
+phoneme m^
+  vcd blb nas lng
+  ipa mː
+  length 170
+  FMT(m/mj)
+endphoneme
+
+
+phoneme m;^
+  vcd pal blb nas lng
+  ipa mʲː
+  length 170
+  FMT(m/mj)
+endphoneme
+
+
 phoneme n;
   vcd alv nas pzd pal
   ipa nʲ 
@@ -265,6 +342,57 @@ phoneme n;
     FMT(n^/n^_)
   ENDIF
 endphoneme
+
+
+phoneme n^
+  vcd alv nas lng
+  ipa nː
+  length 180
+  Vowelout f1=2 f2=1500 -300 250  f3=-100 80  rms=20 brk
+  lengthmod 4
+
+  IF KlattSynth THEN
+    Vowelin f1=0 f2=1500 -200 200 f3=0 80
+    FMT(klatt/n)
+  ENDIF
+
+  NextVowelStarts
+    VowelStart(n/n@)
+    VowelStart(n/na)
+    VowelStart(n/ne)
+    VowelStart(n/ni)
+    VowelStart(n/no)
+    VowelStart(n/nu)
+  EndSwitch
+
+  IF prevPh(isNotVowel) AND nextPhW(isLiquid) THEN
+    FMT(n/nj)
+  ELIF prevPh(isPause) OR prevPh(n) THEN
+    FMT(n/_n)
+  ELIF nextPh(isNotVowel) THEN
+    FMT(n/n_)
+  ENDIF
+endphoneme
+
+
+phoneme n;^
+  vcd pal nas lng
+  ipa nʲː
+  length 180
+  lengthmod 3
+  length 100
+  Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
+  Vowelout f1=2 f2=2700 400 600  f3=200 80 rate len=70 colr=1
+
+  IF prevPh(isPause) THEN
+    FMT(n^/_n^)
+  ELIF nextPh(isNotVowel) THEN
+    FMT(n^/n^_)
+  ELSE
+    FMT(n^/n^_)
+  ENDIF
+endphoneme
+
 
 
 phoneme n_
@@ -371,6 +499,34 @@ phoneme s;
 endphoneme
 
 
+phoneme s^
+  vls alv frc sib lng
+  ipa sː
+  length 180
+  lengthmod 3
+
+  Vowelin  f1=0  f2=1700 -300 300  f3=-100 80
+  Vowelout f1=0  f2=1700 -300 250  f3=-100 80  rms=20
+ 
+  WAV(ufric/s)
+endphoneme
+
+
+phoneme s;^
+  vls pal frc sib lng
+  ipa sʲː
+  length 180
+  lengthmod 3
+  Vowelin  f1=1  f2=2700 400 600  f3=200 70 rate len=70
+  Vowelout f1=1  f2=2700 400 600  f3=200 70 rate len=70
+
+  IF nextPh(isPause) THEN
+    WAV(ufric/s_pzd_)
+  ENDIF
+  WAV(ufric/s_pzd)
+endphoneme
+
+
 phoneme t
   vls alv stp
   lengthmod 2
@@ -401,6 +557,22 @@ phoneme t;
     WAV(ustop/t_pzd, 30)
   ENDIF
   WAV(ustop/t_pzd, 60)
+endphoneme
+
+
+phoneme t^
+  vls alv stp lng
+  ipa tː
+  length 160
+  WAV(ustop/t)
+endphoneme
+
+
+phoneme t;^
+  vls pal stp lng
+  ipa tʲː
+  length 160
+  WAV(ustop/t)
 endphoneme
 
 
@@ -471,6 +643,17 @@ phoneme S
 endphoneme
 
 
+phoneme S^
+  vls rfx frc sib lng
+  ipa ʂː
+  length 190
+  lengthmod 4
+  Vowelin  f1=0  f2=1600 -200 300  f3=-200 80
+  Vowelout f1=0  f2=1600 -200 250  f3=-100 80
+  WAV(ufric/sh)
+endphoneme
+
+
 phoneme S;
   vls alp sib frc pzd pal
   ipa ɕː 
@@ -501,6 +684,16 @@ phoneme ts
   WAV(ustop/ts)
 endphoneme
 
+
+phoneme ts^
+  vls alv afr sib lng
+  ipa ʦː
+  length 180
+  lengthmod 2
+  FMT(ustop/ts)
+endphoneme
+
+
 phoneme dz
   import_phoneme consonants/dz
 endphoneme
@@ -509,6 +702,18 @@ endphoneme
 phoneme tS;
   vls alp sib afr pal
   ipa tɕ
+  voicingswitch dZ;
+  lengthmod 2
+  Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
+
+  WAV(ustop/ts_pzd)
+endphoneme
+
+
+phoneme tS^
+  vls pal afr lng
+  ipa tɕː
+  length 180
   voicingswitch dZ;
   lengthmod 2
   Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
