@@ -27,7 +27,7 @@ except ImportError as e:
 
 # --- КОНСТАНТЫ TTS ---
 AUDIO_STOP = object()
-AUDIO_FINISHED = object() # <--- Маркер окончания звука
+AUDIO_FINISHED = object()
 SAMPLE_RATE = 22050
 SAMPLE_WIDTH = 2
 CHANNELS = 1
@@ -203,7 +203,7 @@ class AudioCleaner:
         self.FG_COLOR = "#26A269"
         self.FG_COLOR2 = "#135240"
         self.PANEL_BG = "#1e1e1e"
-        self.ERR_COLOR = "#cc0000"
+        self.ERR_COLOR = "#560000"
         
         # --- НАСТРОЙКИ СЕРВЕРА TTS ---
         self.TTS_HOST = "127.0.0.1"
@@ -279,12 +279,12 @@ class AudioCleaner:
 
         # 1. Метка (Voice)
         tk.Label(self.tts_frame, text="Voice :", bg=self.BG_COLOR, fg=self.FG_COLOR2, 
-                 font=("Helvetica", max(10, self.FONT_SIZE - 2))).grid(row=0, column=0, sticky="w")
+                 font=("Segoe UI", max(10, self.FONT_SIZE - 2))).grid(row=0, column=0, sticky="w")
 
         # 2. Поле ввода (Entry)
         self.voice_var = tk.StringVar(value=self.TTS_DEFAULT_VOICE)
         self.voice_entry = tk.Entry(self.tts_frame, textvariable=self.voice_var, bg=self.PANEL_BG, fg=self.FG_COLOR2, 
-                                    insertbackground=self.FG_COLOR2, font=("Helvetica", max(10, self.FONT_SIZE - 2)), 
+                                    insertbackground=self.FG_COLOR2, font=("Segoe UI", max(10, self.FONT_SIZE - 2)), 
                                     relief=tk.FLAT, bd=0, highlightthickness=0)
         # sticky="nsew" растягивает поле во все стороны
         self.voice_entry.grid(row=0, column=1, sticky="nsew", padx=10)
@@ -293,7 +293,7 @@ class AudioCleaner:
         self.btn_tts = tk.Button(self.tts_frame, text=" ▶ ", command=self.toggle_tts, 
                                  bg=self.PANEL_BG, fg=self.FG_COLOR2, activebackground=self.FG_COLOR2, 
                                  activeforeground=self.BG_COLOR, relief=tk.FLAT, 
-                                 font=("Helvetica", max(10, self.FONT_SIZE - 2), "bold"), bd=0)
+                                 font=("Segoe UI", max(10, self.FONT_SIZE - 2), "bold"), bd=0)
         # sticky="ns" заставляет кнопку растянуться строго по высоте строки (как поле ввода)
         self.btn_tts.grid(row=0, column=2, sticky="ns")
 
@@ -301,17 +301,42 @@ class AudioCleaner:
             self.btn_tts.config(state=tk.DISABLED, text="TTS недоступен")
             self.voice_entry.config(state=tk.DISABLED)
 
-        # --- ПОДСКАЗКИ ---
+        # --- НИЖНЯЯ ПАНЕЛЬ (СПРАВКА + ГАЛОЧКА) ---
+        self.bottom_frame = tk.Frame(root, bg=self.BG_COLOR)
+        self.bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=20)
+
+        # Делаем левую (0) и правую (2) колонки абсолютно одинаковыми по ширине с помощью uniform="edges"
+        # Это гарантирует, что колонка 1 всегда будет ровно по центру программы.
+        self.bottom_frame.columnconfigure(0, weight=1, uniform="edges")
+        self.bottom_frame.columnconfigure(1, weight=0)
+        self.bottom_frame.columnconfigure(2, weight=1, uniform="edges")
+
+        # 1. Пояснение (Справка) - Строго по центру (column 1)
         help_text = (
             "повторить ↓  |  ↑ удалить\n"
-            "вернуться ←  |  → следущюий\n"
+            "вернуться ←  |  → следующий\n"
             "пробел       |  ▶/⏹"
         )
-        self.lbl_help = tk.Label(root, text=help_text, 
+        self.lbl_help = tk.Label(self.bottom_frame, text=help_text, 
                                  font=("Consolas", max(10, self.FONT_SIZE - 2)), 
-                                 bg=self.PANEL_BG, fg=self.FG_COLOR2, relief="sunken", padx=10, pady=10,
-                                 justify=tk.LEFT)
-        self.lbl_help.pack(side=tk.BOTTOM, pady=20)
+                                 bg=self.PANEL_BG, fg=self.FG_COLOR2, relief="sunken", 
+                                 padx=10, pady=10, justify=tk.LEFT)
+        self.lbl_help.grid(row=0, column=1)
+
+        # 2. Галочка (Защита удаления) - Справа (column 2)
+        # value=False означает, что по умолчанию удаление ЗАПРЕЩЕНО
+        self.allow_delete_var = tk.BooleanVar(value=False) 
+        self.chk_del = tk.Checkbutton(self.bottom_frame, text="allow deletion", 
+                                      variable=self.allow_delete_var,
+                                      bg=self.BG_COLOR, fg=self.FG_COLOR2, 
+                                      selectcolor=self.PANEL_BG,
+                                      activebackground=self.BG_COLOR,
+                                      activeforeground=self.FG_COLOR2,
+                                      font=("Helvetica", max(10, self.FONT_SIZE - 4)),
+                                      bd=0, highlightthickness=0)
+        
+        # sticky="nw" прижимает галочку к ВЕРХУ (N) и ЛЕВОМУ КРАЮ (W) 3-й колонки
+        self.chk_del.grid(row=0, column=2, padx=10, sticky="nw")
 
         # --- БИНДИНГИ ---
         root.bind_all('<Up>', self.delete_and_next)
@@ -388,7 +413,7 @@ class AudioCleaner:
                 pygame.mixer.music.stop()
                 
             self.is_tts_playing = True
-            self.btn_tts.config(text=" ⏹ ", fg=self.ERR_COLOR)
+            self.btn_tts.config(text="⏹", fg=self.ERR_COLOR)
             self.tts_manager.start_synthesis(self.current_text, self.voice_var.get())
 
     def on_slider_change(self, val):
@@ -474,15 +499,64 @@ class AudioCleaner:
             self.root.after(200, lambda: self.lbl_filename.config(bg=self.BG_COLOR))
 
     def delete_and_next(self, event=None):
+        """Стрелка ВВЕРХ: Удалить и следующий"""
+        # Если галочка НЕ стоит — блокируем удаление
+        if not self.allow_delete_var.get():
+            self.lbl_filename.config(bg="#440000")
+            self.root.after(200, lambda: self.lbl_filename.config(bg=self.BG_COLOR))
+            return
+
+        # Если галочка стоит, продолжаем удаление
         if self.current_file_path and os.path.exists(self.current_file_path):
             try:
                 self.stop_tts()
                 pygame.mixer.music.stop()
                 pygame.mixer.music.unload()
                 
-                os.remove(self.current_file_path)
-                print(f"Удален: {self.files[self.index]}")
+                filename = self.files[self.index]
+                stem = os.path.splitext(filename)[0] # Имя файла без расширения (например, "002")
                 
+                # 1. Удаляем физический аудиофайл
+                os.remove(self.current_file_path)
+                print(f"Удален аудиофайл: {filename}")
+                
+                # 2. Удаляем запись из metadata.csv
+                metadata_path = os.path.join(self.folder_path, "metadata.csv")
+                if os.path.exists(metadata_path):
+                    used_enc = 'utf-8'
+                    lines =[]
+                    
+                    # Читаем файл, определяя кодировку
+                    for enc in ['utf-8', 'cp1251']:
+                        try:
+                            with open(metadata_path, 'r', encoding=enc) as f:
+                                lines = f.readlines()
+                            used_enc = enc
+                            break
+                        except UnicodeDecodeError:
+                            continue
+                            
+                    if lines:
+                        new_lines =[]
+                        for line in lines:
+                            parts = line.split('|', 1)
+                            if len(parts) > 0:
+                                row_id = parts[0].strip()
+                                # Если ID в CSV совпадает с именем файла или его именем без расширения - пропускаем строку
+                                if row_id == filename or row_id == stem:
+                                    continue 
+                            new_lines.append(line)
+                            
+                        # Перезаписываем CSV файл без удаленной строки
+                        with open(metadata_path, 'w', encoding=used_enc) as f:
+                            f.writelines(new_lines)
+                        
+                        # Обновляем словарь в памяти программы
+                        self.metadata.pop(filename, None)
+                        self.metadata.pop(stem, None)
+                        print(f"Строка удалена из metadata.csv")
+
+                # 3. Убираем из списка интерфейса и переходим дальше
                 del self.files[self.index]
                 self.slider.config(to=max(1, len(self.files)))
                 
