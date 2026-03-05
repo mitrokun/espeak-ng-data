@@ -206,7 +206,7 @@ class AudioCleaner:
         # --- НАСТРОЙКИ СЕРВЕРА TTS ---
         self.TTS_HOST = "127.0.0.1"
         self.TTS_PORT = 10200
-        self.TTS_DEFAULT_VOICE = "ru_RU-sushkov-medium_epoch4849"
+        self.TTS_DEFAULT_VOICE = "ru_RU-mari-medium_epoch6399"
         
         self.root.configure(bg=self.BG_COLOR)
         self.root.focus_force()
@@ -750,3 +750,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = AudioCleaner(root)
     root.mainloop()
+
