@@ -259,6 +259,8 @@ class AudioCleaner:
                                      font=("Helvetica", self.FONT_SIZE, "bold"), 
                                      bg=self.BG_COLOR, fg=self.FG_COLOR)
         self.lbl_filename.grid(row=0, column=1)
+        self.lbl_filename.bind("<Button-1>", self.manual_reload)
+        self.lbl_filename.config(cursor="hand2")
 
         # Кнопка редактирования — в правой колонке (2), прижата к левому краю (w), 
         # чтобы быть поближе к заголовку
@@ -286,6 +288,7 @@ class AudioCleaner:
                                         bg=self.PANEL_BG, fg=self.FG_COLOR2, 
                                         activebackground=self.FG_COLOR2, activeforeground=self.BG_COLOR, 
                                         relief=tk.FLAT, font=("Arial", 8), 
+                                        width=5,
                                         bd=0, padx=2, pady=0, highlightthickness=0)
         self.btn_prev_arrow.grid(row=0, column=0)
 
@@ -303,13 +306,22 @@ class AudioCleaner:
                                         bg=self.PANEL_BG, fg=self.FG_COLOR2, 
                                         activebackground=self.FG_COLOR2, activeforeground=self.BG_COLOR, 
                                         relief=tk.FLAT, font=("Arial", 8), 
+                                        width=5,
                                         bd=0, padx=2, pady=0, highlightthickness=0)
         self.btn_next_arrow.grid(row=0, column=2)
 
-        self.lbl_count = tk.Label(root, text=f"Файлов: {len(self.files)}", 
+        self.replay_zone = tk.Frame(root, bg=self.BG_COLOR)
+        self.replay_zone.pack(fill=tk.X)
+
+        self.lbl_count = tk.Label(self.replay_zone, text=f"Файлов: {len(self.files)}", 
                                   font=("Arial", max(10, self.FONT_SIZE - 6)), 
                                   bg=self.BG_COLOR, fg=self.FG_COLOR2)
-        self.lbl_count.pack(pady=5)
+        # pady=8 создает высоту этой невидимой кнопки
+        self.lbl_count.pack(fill=tk.BOTH, pady=8) 
+
+        # Функционал клика остается рабочим
+        self.replay_zone.bind("<Button-1>", self.replay)
+        self.lbl_count.bind("<Button-1>", self.replay)
 
         # --- TTS ПАНЕЛЬ ---
         self.tts_frame = tk.Frame(root, bg=self.BG_COLOR)
@@ -323,14 +335,17 @@ class AudioCleaner:
         self.voice_entry = tk.Entry(self.tts_frame, textvariable=self.voice_var, bg=self.PANEL_BG, fg=self.FG_COLOR2, 
                                     insertbackground=self.FG_COLOR2, font=("Segoe UI", max(10, self.FONT_SIZE - 2)), 
                                     relief=tk.FLAT, bd=0, highlightthickness=0)
+        # --- ДОБАВИТЬ ЭТУ СТРОКУ ---
+        self.fix_copy_paste(self.voice_entry)
+        # ---------------------------
         self.voice_entry.grid(row=0, column=1, sticky="nsew", padx=10)
 
         self.voice_entry.bind('<Return>', self.exit_entry_and_play)
         self.voice_entry.bind('<Escape>', lambda e: self.root.focus_set())
-
         self.btn_tts = tk.Button(self.tts_frame, text=" ▶ ", command=self.toggle_tts, 
                                  bg=self.PANEL_BG, fg=self.FG_COLOR2, activebackground=self.FG_COLOR2, 
                                  activeforeground=self.BG_COLOR, relief=tk.FLAT, 
+                                 width=3,
                                  font=("Segoe UI", max(10, self.FONT_SIZE - 2), "bold"), bd=0)
         self.btn_tts.grid(row=0, column=2, sticky="ns")
 
@@ -425,12 +440,16 @@ class AudioCleaner:
         self.editor.grab_set() 
         self.editor.bind("<Escape>", lambda e: self.editor.destroy())
 
-        lbl = tk.Label(self.editor, text="Отредактируйте текст:", bg=self.BG_COLOR, fg=self.FG_COLOR, font=("Helvetica", max(10, self.FONT_SIZE-2)))
+        lbl = tk.Label(self.editor, text="Editor:", bg=self.BG_COLOR, fg=self.FG_COLOR, font=("Helvetica", max(10, self.FONT_SIZE-2)))
         lbl.pack(pady=(10,0))
 
         # Текстовое поле
         txt = tk.Text(self.editor, font=("Helvetica", self.FONT_SIZE), bg=self.PANEL_BG, fg=self.FG_COLOR, 
                       wrap=tk.WORD, height=4, insertbackground=self.FG_COLOR, bd=0)
+
+        # --- ДОБАВИТЬ ЭТУ СТРОКУ ---
+        self.fix_copy_paste(txt)
+        # ---------------------------
         txt.pack(padx=15, pady=10, fill=tk.BOTH, expand=True)
         txt.insert("1.0", self.current_text)
         txt.focus_set()
@@ -442,28 +461,47 @@ class AudioCleaner:
             txt.insert(tk.INSERT, "\u0301")
             txt.focus_set()
 
+        def insert_yo():
+            try:
+                # Проверяем, есть ли выделенный текст (тег "sel")
+                if txt.tag_ranges("sel"):
+                    txt.delete("sel.first", "sel.last") # Удаляем выделенное
+            except tk.TclError:
+                pass # Если выделения нет, просто идем дальше
+            
+            txt.insert(tk.INSERT, "ё") # Вставляем букву
+            txt.focus_set()
+
         def save_changes():
             new_text = txt.get("1.0", tk.END).strip()
             self.save_transcription(new_text)
             self.editor.destroy()
 
-# Настраиваем колонки-пружины для btn_frame
+        # Настраиваем колонки-пружины (теперь их 5 штук, чтобы 3 кнопки были в центре)
         btn_frame.columnconfigure(0, weight=1) # Левая пружина
-        btn_frame.columnconfigure(3, weight=1) # Правая пружина
+        btn_frame.columnconfigure(4, weight=1) # Правая пружина
 
+        # Кнопка Ударение
         btn_stress = tk.Button(btn_frame, text="Add U+0301", command=insert_stress,
                                bg=self.PANEL_BG, fg=self.FG_COLOR, activebackground=self.FG_COLOR,
                                activeforeground=self.BG_COLOR, relief=tk.FLAT, 
                                font=("Helvetica", max(10, self.FONT_SIZE - 4)))
-        # Ставим во вторую колонку (column 1)
         btn_stress.grid(row=0, column=1, padx=5)
 
+        # Кнопка Ё (шириной в 2 символа, чтобы была компактной)
+        btn_yo = tk.Button(btn_frame, text="ё", command=insert_yo,
+                           bg=self.PANEL_BG, fg=self.FG_COLOR, activebackground=self.FG_COLOR,
+                           activeforeground=self.BG_COLOR, relief=tk.FLAT, 
+                           font=("Helvetica", max(10, self.FONT_SIZE - 4)),
+                           width=2) 
+        btn_yo.grid(row=0, column=2, padx=5)
+
+        # Кнопка Сохранить (переехала в column 3)
         btn_save = tk.Button(btn_frame, text="Сохранить", command=save_changes,
                              bg=self.PANEL_BG, fg=self.FG_COLOR, activebackground=self.FG_COLOR,
                              activeforeground=self.BG_COLOR, relief=tk.FLAT, 
                              font=("Helvetica", max(10, self.FONT_SIZE - 4), "bold"))
-        # Ставим в третью колонку (column 2)
-        btn_save.grid(row=0, column=2, padx=5)
+        btn_save.grid(row=0, column=3, padx=5)
 
     def save_transcription(self, new_text):
         """Сохраняет измененный текст в памяти и в metadata.csv"""
@@ -548,6 +586,41 @@ class AudioCleaner:
             wrap_width = max(200, event.width - 40)
             self.lbl_filename.config(wraplength=wrap_width)
             self.lbl_transcription.config(wraplength=wrap_width)
+
+
+    def fix_copy_paste(self, widget):
+        """Универсальный фикс Ctrl+C/V для любой раскладки через скан-коды клавиш"""
+        def handle_command(event):
+            # Коды клавиш: 67 = C (Копировать), 86 = V (Вставить)
+            # Мы проверяем физическую клавишу, игнорируя язык
+            if event.state & 0x4: # Проверка нажатого Ctrl
+                if event.keycode == 67: # Клавиша С
+                    widget.event_generate("<<Copy>>")
+                    return "break"
+                elif event.keycode == 86: # Клавиша V
+                    widget.event_generate("<<Paste>>")
+                    return "break"
+                elif event.keycode == 65: # Клавиша A (Выделить всё)
+                    widget.event_generate("<<SelectAll>>")
+                    return "break"
+
+        # Привязываем к нажатию любой клавиши с зажатым Ctrl
+        widget.bind("<Control-KeyPress>", handle_command)
+
+    def manual_reload(self, event=None):
+        """Перезагружает метаданные из файла и обновляет текущий экран"""
+        
+        # 1. Визуальный отклик (включаем "свет")
+        old_color = self.lbl_filename.cget("fg")
+        self.lbl_filename.config(fg="#FFFFFF") 
+        self.root.update_idletasks() # Принудительно перерисовываем прямо сейчас
+
+        # 2. Основное действие
+        self.load_metadata()     # Перечитываем CSV с диска
+        self.update_ui_texts()   # Обновляем текст на экране
+        
+        # 3. Возвращаем цвет обратно через 200мс
+        self.root.after(200, lambda: self.lbl_filename.config(fg=old_color))
 
     def stop_tts(self):
         if self.tts_manager and self.is_tts_playing:
@@ -750,4 +823,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = AudioCleaner(root)
     root.mainloop()
-
