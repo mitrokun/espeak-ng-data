@@ -2,21 +2,20 @@ import os
 import csv
 import onnx_asr
 import re
-from tqdm import tqdm
+import argparse
 import difflib
+from tqdm import tqdm
 
-# --- НАСТРОЙКИ ---
-INPUT_FOLDER = "."
-OUTPUT_FILE = "metadata.csv"
-DEBUG_MODE = True 
+# --- НАСТРОЙКИ ПО УМОЛЧАНИЮ ---
+DEFAULT_INPUT_FOLDER = "output_fragments"
+DEFAULT_OUTPUT_FILENAME = "metadata.csv" # Имя файла внутри папки
 
 # --- ИНИЦИАЛИЗАЦИЯ МОДЕЛЕЙ ---
-print("Загрузка моделей...")
+print("Загрузка моделей GigaAM...")
 model_ctc = onnx_asr.load_model("gigaam-v3-ctc")
-model_e2e = onnx_asr.load_model("gigaam-v3-e2e-ctc")
+model_e2e = onnx_asr.load_model("gigaam-v3-e2e-rnnt")
 
 def is_number_or_roman(word):
-    """Проверяет, содержит ли токен цифры или является ли римской цифрой"""
     clean = re.sub(r'[^\w]', '', word)
     if any(c.isdigit() for c in clean):
         return True
@@ -25,7 +24,6 @@ def is_number_or_roman(word):
     return False
 
 def clean_word(word):
-    """Очистка для сравнения"""
     return re.sub(r'[^\w]', '', word).lower()
 
 def merge_transcriptions(text_ctc, text_e2e):
@@ -41,82 +39,81 @@ def merge_transcriptions(text_ctc, text_e2e):
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == 'equal':
             final_tokens.extend(e2e_words[i1:i2])
-            
         elif tag == 'replace':
             e2e_chunk = e2e_words[i1:i2]
             ctc_chunk = ctc_words[j1:j2]
-            
-            # Если в E2E число/римское — берем CTC версию (прописью)
-            if any(is_number_or_roman(w) for w in e2e_chunk):
+            if any(is_number_or_roman(w) for w in e2e_chunk) and ctc_chunk:
                 punc_match = re.search(r'[^\w\s]+$', e2e_chunk[-1])
                 if punc_match:
                     ctc_chunk[-1] += punc_match.group()
-                
                 if e2e_chunk[0][0].isupper():
                     ctc_chunk[0] = ctc_chunk[0].capitalize()
                 final_tokens.extend(ctc_chunk)
             else:
-                # В остальных случаях берем E2E (Ё, регистр, орфография)
                 final_tokens.extend(e2e_chunk)
-                
         elif tag == 'insert':
             final_tokens.extend(ctc_words[j1:j2])
-            
         elif tag == 'delete':
             final_tokens.extend(e2e_words[i1:i2])
 
     result = " ".join(final_tokens)
-    
-    # --- ПОСТ-ОБРАБОТКА (ЧИСТКА ТЕКСТА) ---
-    
-    # 1. Убираем знаки валют
-    result = re.sub(r'[₽$€]', '', result)
-    
-    # 2. Исправляем тире: "Слово—слово" -> "Слово — слово"
-    # Находим длинное или среднее тире и добавляем пробелы, если их нет
-    result = re.sub(r'([^ ])([—–])', r'\1 \2', result) # пробел перед тире
-    result = re.sub(r'([—–])([^ ])', r'\2 \2', result) # пробел после тире (опечатка исправлена ниже)
-    # Корректная версия замены для тире:
+    result = re.sub(r'[₽$€%]', '', result)
     result = re.sub(r'([—–])', r' \1 ', result)
-    
-    # 3. Убираем лишние пробелы перед знаками препинания
     result = re.sub(r'\s+([,.!?])', r'\1', result)
-    
-    # 4. Схлопываем двойные пробелы, которые могли возникнуть после правок тире
     result = " ".join(result.split())
     
     return result
 
-# --- ОСНОВНОЙ ЦИКЛ ---
-wav_files = [f for f in os.listdir(INPUT_FOLDER) if f.endswith(".wav")]
-print(f"Найдено файлов: {len(wav_files)}")
+def main():
+    parser = argparse.ArgumentParser(description="Распознавание аудио в папке.")
+    parser.add_argument("-i", "--input", type=str, default=DEFAULT_INPUT_FOLDER, 
+                        help=f"Папка с аудио (по умолчанию: {DEFAULT_INPUT_FOLDER})")
+    parser.add_argument("-o", "--output", type=str, default=DEFAULT_OUTPUT_FILENAME, 
+                        help=f"Имя CSV файла внутри целевой папки (по умолчанию: {DEFAULT_OUTPUT_FILENAME})")
+    
+    args = parser.parse_args()
 
-with open(OUTPUT_FILE, mode='w', encoding='utf-8', newline='') as f:
-    writer = csv.writer(f, delimiter='|')
+    if not os.path.exists(args.input):
+        print(f"Ошибка: Папка '{args.input}' не найдена!")
+        return
 
-    for filename in tqdm(wav_files, desc="Распознавание"):
-        file_path = os.path.join(INPUT_FOLDER, filename)
-        
-        try:
-            raw_ctc = model_ctc.recognize(file_path)
-            raw_e2e = model_e2e.recognize(file_path)
-            
-            # Убираем лишние переносы и пробелы из сырых данных
-            raw_ctc = " ".join(raw_ctc.split())
-            raw_e2e = " ".join(raw_e2e.split())
-            
-            result = merge_transcriptions(raw_ctc, raw_e2e)
-            
-            if DEBUG_MODE:
-                print(f"\nФайл: {filename}")
-                print(f" CTC: {raw_ctc}")
-                print(f" E2E: {raw_e2e}")
-                print(f" RES: {result}")
-                print("-" * 30)
+    # Формируем полный путь к CSV файлу ВНУТРИ целевой папки
+    full_output_path = os.path.join(args.input, args.output)
 
-            writer.writerow([filename, result])
-            
-        except Exception as e:
-            print(f"\nОшибка в файле {filename}: {e}")
+    # Поиск и сортировка файлов
+    wav_files = [f for f in os.listdir(args.input) if f.endswith(".wav")]
+    # Сортировка по числам в именах (чтобы 2.wav было перед 10.wav)
+    wav_files.sort(key=lambda f: int(re.sub(r'\D', '', f) if re.sub(r'\D', '', f) else 0))
 
-print(f"\nГотово! Результаты сохранены в {OUTPUT_FILE}")
+    if not wav_files:
+        print(f"В папке '{args.input}' не найдено .wav файлов.")
+        return
+
+    print(f"Обработка {len(wav_files)} файлов...")
+    print(f"Результат будет сохранен в: {full_output_path}")
+
+    with open(full_output_path, mode='w', encoding='utf-8', newline='') as f:
+        writer = csv.writer(f, delimiter='|')
+
+        for filename in tqdm(wav_files, desc="Распознавание"):
+            file_path = os.path.join(args.input, filename)
+            
+            try:
+                raw_ctc = model_ctc.recognize(file_path)
+                raw_e2e = model_e2e.recognize(file_path)
+                
+                raw_ctc = " ".join(raw_ctc.split())
+                raw_e2e = " ".join(raw_e2e.split())
+                
+                result = merge_transcriptions(raw_ctc, raw_e2e)
+
+                # В CSV записываем только имя файла и текст
+                writer.writerow([filename, result])
+                
+            except Exception as e:
+                print(f"\nОшибка в файле {filename}: {e}")
+
+    print(f"\nЗавершено! Файл создан: {full_output_path}")
+
+if __name__ == "__main__":
+    main()
