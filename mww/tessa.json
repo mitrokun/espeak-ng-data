@@ -1,0 +1,16 @@
+{
+    "type": "micro",
+    "wake_word": "tessa",
+    "author": "mitrokun",
+    "website": "https://github.com/mitrokun",
+    "model": "tessa.tflite",
+    "version": 2,
+    "trained_languages": ["en"],
+    "micro": {
+      "probability_cutoff": 0.99,
+      "sliding_window_size": 5,
+      "feature_step_size": 10,
+      "tensor_arena_size": 30000,
+      "minimum_esphome_version": "2024.7.0"
+    }
+  }
