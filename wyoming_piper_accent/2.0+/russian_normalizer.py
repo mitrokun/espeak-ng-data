@@ -15,6 +15,13 @@ class RussianNormalizer:
         if not NUM2WORDS_AVAILABLE:
             _LOGGER.warning("Библиотека `num2words` не найдена.")
 
+        # словарь работает в связке с правилами espeak-ng
+        self.adverb_fixes = {
+            r'\bпо-моему\b': 'помоему',
+            r'\bпо-твоему\b': 'потвоему',
+            r'\bпо-своему\b': 'посвоему',
+        }
+
     def _get_noun_form(self, n: int, forms: list) -> str:
         """
         Универсальный подбор формы существительного.
@@ -106,6 +113,10 @@ class RussianNormalizer:
         return self._float_to_text(match.group(0))
 
     def normalize(self, text: str) -> str:
+        # 0. Исправляем наречия с дефисами ПЕРЕД остальной обработкой
+        for pattern, replacement in self.adverb_fixes.items():
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+
         # 1. Проценты
         text = re.sub(r'(\d+(?:[.,]\d+)?)\s*%', self._replace_percentages, text)
         

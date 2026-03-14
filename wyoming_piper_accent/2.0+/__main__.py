@@ -113,6 +113,8 @@ async def main() -> None:
     )
     _LOGGER.debug(args)
 
+    logging.getLogger("piper").setLevel(logging.INFO)
+
     if ENG_AVAILABLE:
         _LOGGER.info("English Normalizer: AVAILABLE")
     else:

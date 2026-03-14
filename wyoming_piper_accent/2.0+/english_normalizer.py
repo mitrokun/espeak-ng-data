@@ -18,14 +18,15 @@ class EnglishNormalizer:
     """
     ENGLISH_EXCEPTIONS = {
         # Бренды и имена
-        "google": "гугл", "apple": "эпл", "microsoft": "майкрософт",
+        "google": "гугл", "apple": "эпл", "microsoft": "майкрософт", "xiaomi": "сяом+и",
         "samsung": "самсунг", "toyota": "тойота", "volkswagen": "фольцваген",
         "coca": "кока", "cola": "кола", "pepsi": "пэпси", "whatsapp": "вотсап",
         "telegram": "телеграм", "youtube": "ютуб", "instagram": "инстаграм",
         "facebook": "фэйсбук", "twitter": "твиттер", "iphone": "айф+он",
-        "tesla": "тесла", "spacex": "спэйс икс", "amazon": "амазон",
+        "tesla": "тесла", "spacex": "спэйс икс", "amazon": "амазон", "camera": "к+амера",
         "python": "пайтон", "AI": "эй+ай", "api": "эйпиай", "glados": "гл+адос",
         "IT": "+ай т+и", "Wi-Fi": "вай фай", "RTX": "эрте+икс", "nasa": "н+аса",
+        "photoshop": "фотош+оп", "SOS": "сос", "PDF": "пэдэ+эф", "raw": "р+оу",
         # Ё
         "work": "ворк", "world": "ворлд", "bird": "бёрд",
         "girl": "гёрл", "burn": "бёрн", "her": "хёр",
@@ -35,7 +36,7 @@ class EnglishNormalizer:
         "to": "ту", "in": "ин", "on": "он", "is": "из", "or": "ор",
         # Слова, где IPA-библиотека ошибается
         "knowledge": "ноуледж", "new": "нью",
-        "video": "видео", "ru": "ру", "com": "ком",
+        "video": "видео", "ru": "ру", "com": "ком", "done": "дон",
         "hot": "хот", "https": "аштитипиэс", "http": "аштитипи",
     }
 

@@ -325,6 +325,21 @@ class PiperEventHandler(AsyncEventHandler):
 
             rate, width, channels = voice.config.sample_rate, 2, 1
 
+            # ==========================================
+            # НАЧАЛО БЛОКА: РАЗОГРЕВ (WARM-UP)
+            # ==========================================
+            if not self.audio_started:
+                try:
+                    for _ in voice.synthesize("И раз, два - три.", syn_config):
+                        pass
+                    _LOGGER.debug(f"[{_ts()}] [WARM-UP] Done.")
+                except Exception as e:
+                    _LOGGER.error(f"[{_ts()}][WARM-UP] Failed: {e}")
+            # ==========================================
+            # КОНЕЦ БЛОКА: РАЗОГРЕВ
+            # ==========================================
+
+
             if self.audio_started and self.cli_args.sentence_silence > 0:
                 num_silence_samples = int(rate * self.cli_args.sentence_silence)
                 silence_bytes = b'\x00' * (num_silence_samples * width * channels)

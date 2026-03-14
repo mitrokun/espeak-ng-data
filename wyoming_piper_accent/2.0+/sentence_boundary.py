@@ -40,7 +40,7 @@ def post_clean_sentence(sentence: str) -> str:
     sentence = re.sub(r"\b([\p{IsCyrillic}]{1,3})\.\s+(?=\p{Lu})", r"\1, ", sentence)
     sentence = re.sub(r"^[.,\s]+", "", sentence)
     sentence = re.sub(r"[\*«»\"]", "", sentence)
-    sentence = re.sub(r"\s*—\s*", ", ", sentence)
+    # sentence = re.sub(r"\s*—\s*", ", ", sentence)
     sentence = re.sub(r"\s+", " ", sentence)
     # Исправляем двойные запятые и другие артефакты
     sentence = re.sub(r"\s*([,.]\s*){2,}", r"\1 ", sentence).strip()
