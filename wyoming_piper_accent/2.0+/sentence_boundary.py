@@ -83,15 +83,25 @@ class SentenceBoundaryDetector:
             if not match:
                 # Проверка на переполнение буфера
                 if len(self.buffer) > HARD_LIMIT:
-                    split_pos = self.buffer.rfind(' ', 0, HARD_LIMIT)
-                    if split_pos == -1: 
+                    # Ищем последний пробельный символ (\s = пробел, таб, перенос)
+                    match = re.search(r'(.*\s)', self.buffer[:HARD_LIMIT], re.DOTALL)
+                    
+                    if match:
+                        # Индекс найденного пробельного символа
+                        split_pos = match.end() - 1
+                    else:
                         split_pos = HARD_LIMIT
                     
+                    # Защита от зависания (если split_pos оказался 0)
+                    if split_pos <= 0:
+                        split_pos = HARD_LIMIT
+
                     sentence = self.buffer[:split_pos]
                     yield from self._maybe_yield(sentence)
                     
-                    self.buffer = self.buffer[split_pos:]
-                    continue # Продолжаем искать в остатке
+                    # Отрезаем и чистим начало следующего куска
+                    self.buffer = self.buffer[split_pos:].lstrip()
+                    continue
                 break # Ждем новых данных
 
             # --- ЗАЩИТА ОТ ДРОБНЫХ ЧИСЕЛ ---
