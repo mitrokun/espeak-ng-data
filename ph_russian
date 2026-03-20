@@ -690,7 +690,12 @@ phoneme ts^
   ipa ʦː
   length 180
   lengthmod 2
-  FMT(ustop/ts)
+  Vowelin f1=0  f2=1700 -300 300  f3=-100 80
+  Vowelout f1=0 f2=1700 -300 250  f3=-100 80  rms=20
+  IF nextPh(isPause2) THEN
+    WAV(ustop/ts_)
+  ENDIF
+  WAV(ustop/ts)
 endphoneme
 
 
@@ -784,12 +789,13 @@ endphoneme
 phoneme I2
   vwl starttype #i endtype #i
   length 80
+
+  // Если на эту финальную 'и' падает ударение (такси, шасси)
   IF thisPh(isMaxStress) THEN
-    ChangePhoneme(e)
+    ChangePhoneme(i)
   ENDIF
-  IF prevPhW(isPalatal) THEN
-    ChangePhoneme(I)
-  ENDIF
+
+  // Если ударения нет (танки, кошки), используется I
   FMT(vwl_ru/ii)
 endphoneme
 
