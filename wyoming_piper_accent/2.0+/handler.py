@@ -126,11 +126,10 @@ class PiperEventHandler(AsyncEventHandler):
         self.audio_started: bool = False
         self.sbd = SentenceBoundaryDetector()
         self._synthesize: Optional[Synthesize] = None
-
         self._custom_configs_cache: Dict[str, dict] = {}
 
         self.eng_normalizer = EnglishNormalizer() if ENG_AVAILABLE else None
-        self.rus_normalizer = RussianNormalizer() if RUS_AVAILABLE else None
+        self.rus_normalizer = RussianNormalizer(use_yo=cli_args.yo) if RUS_AVAILABLE else None
 
     async def _process_and_synthesize(self, sentence: str, synthesize_obj: Synthesize):
         if not sentence.strip():

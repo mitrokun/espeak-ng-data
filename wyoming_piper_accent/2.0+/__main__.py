@@ -71,6 +71,11 @@ async def main() -> None:
         action="store_true",
         help="Disable and do not load the automatic stress placement model",
     )
+    parser.add_argument(
+        "--yo",
+        action="store_true",
+        help="Enable e to yo replacement using dictionary",
+    )
     parser.add_argument("--samples-per-chunk", type=int, default=1024)
     parser.add_argument(
         "--no-streaming",

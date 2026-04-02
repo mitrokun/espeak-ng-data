@@ -1,5 +1,6 @@
 import re
 import logging
+from pathlib import Path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -11,9 +12,26 @@ except ImportError:
 
 
 class RussianNormalizer:
-    def __init__(self):
+
+    _SHARED_YO_MAP = None  
+    _IS_LOADING = False
+
+    def __init__(self, use_yo: bool = False):
+        self.use_yo = use_yo
+        self.yo_map = {}
+        
         if not NUM2WORDS_AVAILABLE:
-            _LOGGER.warning("Библиотека `num2words` не найдена.")
+            _LOGGER.warning("Библиотека `num2words` не найдена. Преобразование чисел в текст будет недоступно.")
+
+        # Загрузка словаря, если передан флаг --yo
+        if self.use_yo:
+            # Проверяем, не загружен ли словарь уже кем-то другим
+            if RussianNormalizer._SHARED_YO_MAP is None:
+                self._load_yo_dictionary()
+                RussianNormalizer._SHARED_YO_MAP = self.yo_map
+            else:
+                # Просто берем уже готовую карту из памяти
+                self.yo_map = RussianNormalizer._SHARED_YO_MAP
 
         # словарь работает в связке с правилами espeak-ng
         self.adverb_fixes = {
@@ -21,6 +39,46 @@ class RussianNormalizer:
             r'\bпо-твоему\b': 'потвоему',
             r'\bпо-своему\b': 'посвоему',
         }
+
+    def _load_yo_dictionary(self):
+        """Загрузка чистого словаря ёфикации."""
+        try:
+            dict_path = Path(__file__).parent / "yo.txt"
+            if not dict_path.exists():
+                _LOGGER.warning(f"Файл {dict_path} не найден. Ёфикация отключена.")
+                return
+
+            with open(dict_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    word_yo = line.strip().lower()
+                    if not word_yo:
+                        continue
+                    
+                    # Создаем ключ (слово через 'е')
+                    word_e = word_yo.replace('ё', 'е')
+                    if word_e != word_yo:
+                        self.yo_map[word_e] = word_yo
+            
+            _LOGGER.info(f"Словарь ёфикации загружен: {len(self.yo_map)} слов.")
+        except Exception as e:
+            _LOGGER.error(f"Ошибка загрузки словаря ё: {e}")
+
+    def _yo_replace_match(self, match: re.Match) -> str:
+        word = match.group(0)
+        low_word = word.lower()
+        
+        if low_word in self.yo_map:
+            rep = self.yo_map[low_word]
+            # Сохраняем регистр
+            new_word = rep.capitalize() if word[0].isupper() else rep
+            
+            # Логируем только если слово реально изменилось (е -> ё)
+            if word != new_word:
+                _LOGGER.debug(f"[YO] {word} -> {new_word}")
+                
+            return new_word
+            
+        return word
 
     def _get_noun_form(self, n: int, forms: list) -> str:
         """
@@ -117,10 +175,15 @@ class RussianNormalizer:
         for pattern, replacement in self.adverb_fixes.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
-        # 1. Проценты
+        # 1. Ёфикация по словарю
+        if self.use_yo and self.yo_map:
+            # Регулярка ищет слова из кириллицы
+            text = re.sub(r'[а-яА-ЯёЁ-]+', self._yo_replace_match, text)
+
+        # 2. Проценты
         text = re.sub(r'(\d+(?:[.,]\d+)?)\s*%', self._replace_percentages, text)
         
-        # 2. Оставшиеся дроби
+        # 3. Оставшиеся дроби
         text = re.sub(r'\b\d+[.,]\d+\b', self._replace_floats, text)
         
         return text
