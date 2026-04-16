@@ -674,7 +674,7 @@ endphoneme
 phoneme ts
   vls alv afr sib
   ipa ʦ
-  voicingswitch dz
+  // voicingswitch dz
   lengthmod 2
   Vowelin f1=0  f2=1700 -300 300  f3=-100 80
   Vowelout f1=0 f2=1700 -300 250  f3=-100 80  rms=20
@@ -688,7 +688,7 @@ endphoneme
 phoneme ts^
   vls alv afr sib lng
   ipa ʦː
-  length 180
+  length 150
   lengthmod 2
   Vowelin f1=0  f2=1700 -300 300  f3=-100 80
   Vowelout f1=0 f2=1700 -300 250  f3=-100 80  rms=20
@@ -707,7 +707,7 @@ endphoneme
 phoneme tS;
   vls alp sib afr pal
   ipa tɕ
-  voicingswitch dZ;
+  // voicingswitch dZ;
   lengthmod 2
   Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
 
@@ -718,8 +718,8 @@ endphoneme
 phoneme tS^
   vls pal afr lng
   ipa tɕː
-  length 180
-  voicingswitch dZ;
+  length 150
+  // voicingswitch dZ;
   lengthmod 2
   Vowelin f1=0  f2=2700 400 600  f3=300 80 rate len=70
 
@@ -752,6 +752,20 @@ phoneme i
   IF prevPh(Z) THEN
     ChangePhoneme(y)
   ENDIF
+
+  // Если звук НЕ ударный
+  IF NOT thisPh(isMaxStress) THEN
+    // Сначала проверяем на [j]
+    IF nextPh(j) THEN
+       ChangePhoneme(I)    // Перед 'й' редуцируем!
+    // Потом проверяем на остальные мягкие
+    ELIF nextPh(isPalatal) THEN
+       // Оставляем i (перед мягкими согласными)
+    ELSE
+       ChangePhoneme(I)    // Перед твёрдыми редуцируем
+    ENDIF
+  ENDIF
+
   vwl starttype #i endtype #i
   length 50
   FMT(vwl_ru/ii)
