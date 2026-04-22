@@ -131,7 +131,11 @@ class RussianNormalizer:
         return replacement
 
     def _replace_plus_sign(self, text: str) -> str:
-        return re.sub(r'\s*\+\s*(?=\d)', ' плюс ', text)
+
+        text = re.sub(r'\s*\+\s*(?=\d)', ' плюс ', text)
+        text = re.sub(r'(?<=[a-zA-Zа-яА-ЯёЁ])\+(?![a-zA-Zа-яА-ЯёЁ])', ' плюс', text)
+        
+        return text
 
     def _get_noun_form(self, n: int, forms: list) -> str:
         if 10 < n % 100 < 20: return forms[2]

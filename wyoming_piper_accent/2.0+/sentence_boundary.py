@@ -8,15 +8,31 @@ import regex as re
 
 # --- КОНФИГУРАЦИЯ ---
 HARD_LIMIT = 350
-MERGE_BUFFER_LIMIT = 20
+MERGE_BUFFER_LIMIT = 12
+
+ABBR_FOR_INTONATION = (
+    # Адреса и география
+    r"г|ул|обл|пер|пр|просп|наб|бул|стр|корп|кв|пос|сел|"
+    # Звания, чины, обращения
+    r"акад|проф|доц|канд|тов|гр|ген|лейт|кап|зам|зав|дир|ред|св|"
+    # Литература и ссылки
+    r"см|ср|напр|вып|табл|рис|ил|цит|гл|стр|ст"
+)
+
 
 # ЕДИНОЕ РЕГУЛЯРНОЕ ВЫРАЖЕНИЕ
 SENTENCE_BOUNDARY_RE = re.compile(
     r"""
-    (?<!\b\p{L}{1,3})              # Не должно быть короткого слова/инициала (г., ул.)
-    (?<!\p{Ll}\.\p{Ll})            # НЕ должно быть "буква.буква" (файл.py)
-    ([.!?…])                       # ЗАХВАТЫВАЕМ сам знак конца предложения
-    (?=\s+\p{Lu}|\s*$)             # После знака должен быть пробел+Заглавная или конец строки
+    (?<!\b\p{L}{1,3})              # Не должно быть короткого слова/инициала
+    (?<!\p{Ll}\.\p{Ll})            # НЕ должно быть "буква.буква"
+    ([.!?])                        # ЗАХВАТЫВАЕМ знак конца
+    (?=
+        \s+                        # Обязательный пробел или перенос строки (\n)
+        (?:[—–]\s*)?               # ТИРЕ: Возможно тире и после него пробел
+        \p{Lu}                     # И только потом Заглавная буква
+        |                          # ИЛИ
+        \s*$                       # Конец строки
+    )
     """,
     re.VERBOSE | re.UNICODE
 )
@@ -26,7 +42,8 @@ LIST_ITEM_RE = re.compile(r"^\s*(?:(\d+)\.|([*-]))\s*(.*)", re.MULTILINE)
 
 def post_clean_sentence(sentence: str) -> str:
     """Применяет финальные, деликатные правила форматирования."""
-    
+
+    sentence = sentence.replace('…', ' —')
     sentence = re.sub(r"\s*\((.*?)\)", r", \1, ", sentence)
 
     def list_replacer(match):
@@ -36,8 +53,8 @@ def post_clean_sentence(sentence: str) -> str:
         return text
 
     sentence = LIST_ITEM_RE.sub(list_replacer, sentence)
-    sentence = sentence.replace('\n', ' ').replace(';', '.')
-    sentence = re.sub(r"\b([\p{IsCyrillic}]{1,3})\.\s+(?=\p{Lu})", r"\1, ", sentence)
+    sentence = sentence.replace('\n', ' ').replace(';', ' —')
+    sentence = re.sub(rf"\b({ABBR_FOR_INTONATION})\.\s+(?=\p{{Lu}})", r"\1, ", sentence)
     sentence = re.sub(r"^[.,\s]+", "", sentence)
     sentence = re.sub(r"[\*«»\"]", "", sentence)
     # sentence = re.sub(r"\s*—\s*", ", ", sentence)
@@ -66,7 +83,7 @@ class SentenceBoundaryDetector:
         else:
             joiner = self.held_sentence
             if joiner.endswith('.'):
-                joiner = joiner[:-1] + ','
+                joiner = joiner[:-1] + '.'
             self.held_sentence = f"{joiner} {cleaned}"
 
         if len(self.held_sentence) >= MERGE_BUFFER_LIMIT:
@@ -81,16 +98,20 @@ class SentenceBoundaryDetector:
             
             # Если разделитель не найден
             if not match:
+
+
+
                 # Проверка на переполнение буфера
                 if len(self.buffer) > HARD_LIMIT:
                     # Ищем последний пробельный символ (\s = пробел, таб, перенос)
+                    # Используем [:HARD_LIMIT], чтобы не выйти за пределы
+                    # re.DOTALL позволяет точке . проходить сквозь переносы строк
                     match = re.search(r'(.*\s)', self.buffer[:HARD_LIMIT], re.DOTALL)
                     
                     if match:
-                        # Индекс найденного пробельного символа
-                        split_pos = match.end() - 1
+                        split_pos = match.end() - 1 # Индекс найденного пробельного символа
                     else:
-                        split_pos = HARD_LIMIT
+                        split_pos = HARD_LIMIT # Разделителей нет, рубим жестко
                     
                     # Защита от зависания (если split_pos оказался 0)
                     if split_pos <= 0:
@@ -102,6 +123,9 @@ class SentenceBoundaryDetector:
                     # Отрезаем и чистим начало следующего куска
                     self.buffer = self.buffer[split_pos:].lstrip()
                     continue
+
+
+
                 break # Ждем новых данных
 
             # --- ЗАЩИТА ОТ ДРОБНЫХ ЧИСЕЛ ---
@@ -140,7 +164,7 @@ class SentenceBoundaryDetector:
                 else:
                     joiner = self.held_sentence
                     if joiner.endswith('.'):
-                        joiner = joiner[:-1] + ','
+                        joiner = joiner[:-1] + ' —'
                     self.held_sentence = f"{joiner} {cleaned}"
             self.buffer = ""
 

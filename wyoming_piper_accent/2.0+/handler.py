@@ -24,7 +24,7 @@ from wyoming.tts import (
 )
 
 from .sentence_boundary import SentenceBoundaryDetector
-from .download import ensure_voice_exists, find_voice
+from .download import ensure_voice_exists, find_voice, VoiceNotFoundError
 from .homographs import CORRECTION_WORDS
 
 _LOGGER = logging.getLogger(__name__)
@@ -251,6 +251,18 @@ class PiperEventHandler(AsyncEventHandler):
 
             return True
 
+        except VoiceNotFoundError as err:
+
+            _LOGGER.error(f"Voice not found: {err}")
+            
+            await self.write_event(
+                Error(
+                    text=f"Voice not found: {err}", 
+                    code="voice_not_found"
+                ).event()
+            )
+            return True
+
         except Exception as err:
             await self.write_event(Error(text=str(err), code=err.__class__.__name__).event())
             raise err
@@ -329,29 +341,14 @@ class PiperEventHandler(AsyncEventHandler):
             # ==========================================
             if not self.audio_started:
                 try:
-                    for _ in voice.synthesize("И раз, два - три.", syn_config):
+                    for _ in voice.synthesize("И раз, и два.", syn_config):
                         pass
-                    _LOGGER.debug(f"[{_ts()}] [WARM-UP] Done.")
+                    _LOGGER.debug(f"[{_ts()}] [WARM-UP]")
                 except Exception as e:
                     _LOGGER.error(f"[{_ts()}][WARM-UP] Failed: {e}")
             # ==========================================
             # КОНЕЦ БЛОКА: РАЗОГРЕВ
             # ==========================================
-
-
-            if self.audio_started and self.cli_args.sentence_silence > 0:
-                num_silence_samples = int(rate * self.cli_args.sentence_silence)
-                silence_bytes = b'\x00' * (num_silence_samples * width * channels)
-                
-                if silence_bytes:
-                    await self.write_event(
-                        AudioChunk(
-                            audio=silence_bytes,
-                            rate=rate,
-                            width=width,
-                            channels=channels,
-                        ).event()
-                    )
 
             if not self.audio_started:
                 await self.write_event(AudioStart(rate=rate, width=width, channels=channels).event())
@@ -366,6 +363,22 @@ class PiperEventHandler(AsyncEventHandler):
                         channels=channels,
                     ).event()
                 )
+
+            # Silence
+            if self.cli_args.sentence_silence > 0:
+                num_silence_samples = int(rate * self.cli_args.sentence_silence)
+                silence_bytes = b'\x00' * (num_silence_samples * width * channels)
+                
+                if silence_bytes:
+                    _LOGGER.debug(f"[{_ts()}] [SILENCE] {self.cli_args.sentence_silence}s")
+                    await self.write_event(
+                        AudioChunk(
+                            audio=silence_bytes,
+                            rate=rate,
+                            width=width,
+                            channels=channels,
+                        ).event()
+                    )
 
             _LOGGER.debug(f"[{_ts()}] [DONE]")
 
