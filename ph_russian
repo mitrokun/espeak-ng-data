@@ -933,6 +933,7 @@ endphoneme
 
 phoneme u"
   vwl starttype #u endtype #u
+//  ipa ʉ
   length 150
   FMT(vwl_ru/u#u)
 endphoneme
@@ -990,18 +991,36 @@ endphoneme
 phoneme ja
   vwl  starttype #i endtype #a
 
-  // ПРОВЕРКА ДЛЯ ИКАНЬЯ (середина слова)
   IF NOT thisPh(isWordEnd) THEN
-    // Если это не конец слова — принудительно пробуем сменить на jI
-    ChangeIfUnstressed(jI)
+    
+    IF nextVowel(isMaxStress) THEN
+      ChangeIfUnstressed(jI)
+      
+    ELIF thisPh(isAfterStress) THEN
+      // Ступенчатая проверка вместо AND/OR:
+      IF thisPh(isFinalVowel) THEN
+        IF nextPh(t) THEN
+          // Ничего не меняем для -ят
+        ELIF nextPh(s;) THEN
+          // Ничего не меняем для -ясь
+        ELSE
+          ChangeIfUnstressed(jI)
+        ENDIF
+      ELSE
+        ChangeIfUnstressed(jI)
+      ENDIF
+      
+    ELSE
+      // Если это 2-й или 3-й предударный слог
+      ChangeIfUnstressed(jI)
+    ENDIF
+    
   ENDIF
 
-  // ЛОГИКА ДЛЯ УДАРНЫХ И КОНЦОВ СЛОВ
   IF thisPh(isMaxStress) THEN
     length 200
     FMT(vwl_ru/ja)
   ELSE
-    // Сюда попадут безударные концы слов (баня, гостья, статуя)
     FMT(vdiph2/ii@)
   ENDIF
 endphoneme
@@ -1064,17 +1083,40 @@ phoneme a
   length 100
 
   IF prevPhW(j) THEN
+    // Ничего не меняем
   ELSE
+    
     IF thisPh(isMaxStress) THEN
       IF prevPhW(isPalatal) THEN
         ChangePhoneme(a)
       ELSE
         ChangePhoneme(A)
       ENDIF
+      
     ELSE
       IF prevPhW(isPalatal) THEN
-        ChangePhoneme(I)
-    ENDIF
+        
+        IF nextVowel(isMaxStress) THEN
+          ChangePhoneme(I)
+          
+        ELIF thisPh(isAfterStress) THEN
+          IF thisPh(isFinalVowel) THEN
+            IF nextPh(t) THEN
+              ChangePhoneme(V) 
+            ELIF nextPh(s;) THEN
+              ChangePhoneme(V) 
+            ELSE
+              ChangePhoneme(I)
+            ENDIF
+          ELSE
+            ChangePhoneme(I)
+          ENDIF
+          
+        ELSE
+          ChangePhoneme(I)
+        ENDIF
+        
+      ENDIF
     ENDIF
   ENDIF
 
