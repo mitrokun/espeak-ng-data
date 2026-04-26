@@ -164,7 +164,7 @@ class SentenceBoundaryDetector:
                 else:
                     joiner = self.held_sentence
                     if joiner.endswith('.'):
-                        joiner = joiner[:-1] + ' —'
+                        joiner = joiner[:-1] + ':'
                     self.held_sentence = f"{joiner} {cleaned}"
             self.buffer = ""
 

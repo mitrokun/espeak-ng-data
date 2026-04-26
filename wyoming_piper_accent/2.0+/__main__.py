@@ -16,6 +16,23 @@ from .handler import PiperEventHandler, ENG_AVAILABLE, RUS_AVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 
+# --- ЦВЕТОВОЕ ФОРМАТИРОВАНИЕ ---
+class PiperColorFormatter(logging.Formatter):
+    # Ваш темно-зеленый #26A269
+    SYNTH_COLOR = "\033[38;2;38;162;105m"
+    # Еще более тусклый серый (RGB 80,80,80)
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+    def format(self, record):
+        log_message = super().format(record)
+        
+        # Теперь ищем сокращенное "Synth:"
+        if "Synth:" in record.getMessage():
+            return f"{self.SYNTH_COLOR}{log_message}{self.RESET}"
+        
+        return f"{self.DIM}{log_message}{self.RESET}"
+
 
 def get_bcp47_lang(lang_code: Optional[str]) -> str:
     """Converts a language code to BCP-47 format (e.g., en_US -> en-US)."""
@@ -113,9 +130,15 @@ async def main() -> None:
     if not args.download_dir:
         args.download_dir = args.data_dir[0]
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO, format=args.log_format
-    )
+    # --- НАСТРОЙКА ЛОГИРОВАНИЯ С ЦВЕТАМИ ---
+    handler = logging.StreamHandler()
+    handler.setFormatter(PiperColorFormatter(args.log_format))
+    
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
+    root_logger.addHandler(handler)
+    # ---------------------------------------
+
     _LOGGER.debug(args)
 
     logging.getLogger("piper").setLevel(logging.INFO)

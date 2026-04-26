@@ -274,7 +274,7 @@ class PiperEventHandler(AsyncEventHandler):
         if not text:
             return True
 
-        _LOGGER.debug(f"[{_ts()}] Synthesizing: {text}")
+        _LOGGER.debug(f"[{_ts()}] Synth: {text}")
 
         if self.cli_args.auto_punctuation and text:
             if not any(text.endswith(p) for p in self.cli_args.auto_punctuation):

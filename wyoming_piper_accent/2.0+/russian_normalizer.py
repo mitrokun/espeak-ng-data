@@ -15,11 +15,13 @@ class RussianNormalizer:
 
     _SHARED_YO_MAP = None  
     _SHARED_STRESS_MAP = None
+    _SHARED_CAPITALIZED_STRESS_MAP = None
 
     def __init__(self, use_yo: bool = False):
         self.use_yo = use_yo
         self.yo_map = {}
         self.stress_map = {}
+        self.capitalized_stress_map = {}
         
         if not NUM2WORDS_AVAILABLE:
             _LOGGER.warning("Библиотека `num2words` не найдена. Преобразование чисел в текст недоступно.")
@@ -36,8 +38,10 @@ class RussianNormalizer:
         if RussianNormalizer._SHARED_STRESS_MAP is None:
             self._load_stress_dictionary()
             RussianNormalizer._SHARED_STRESS_MAP = self.stress_map
+            RussianNormalizer._SHARED_CAPITALIZED_STRESS_MAP = self.capitalized_stress_map
         else:
             self.stress_map = RussianNormalizer._SHARED_STRESS_MAP
+            self.capitalized_stress_map = RussianNormalizer._SHARED_CAPITALIZED_STRESS_MAP
 
         self.adverb_fixes = {
             r'\bпо-моему\b': 'помоему',
@@ -72,53 +76,73 @@ class RussianNormalizer:
 
             with open(dict_path, 'r', encoding='utf-8') as f:
                 for line in f:
-                    # 1. Убираем комментарии и лишние пробелы
                     line = line.split('#')[0].strip()
-                    
-                    # 2. Если после очистки строка пустая — пропускаем
                     if not line:
                         continue
                     
-                    # 3. Проверяем наличие знака ударения
                     if '+' in line:
-                        # Ключ — слово без плюса в нижнем регистре
-                        word_clean = line.replace('+', '').lower()
-                        self.stress_map[word_clean] = line.lower()
+                        # Убираем плюс, чтобы проверить с какой буквы написано слово
+                        word_clean = line.replace('+', '')
+                        is_capitalized = word_clean[0].isupper()
+                        
+                        # В словарях ключи и значения всегда храним в нижнем регистре
+                        low_key = word_clean.lower()
+                        low_val = line.lower()
+                        
+                        if is_capitalized:
+                            self.capitalized_stress_map[low_key] = low_val
+                        else:
+                            self.stress_map[low_key] = low_val
             
-            _LOGGER.info(f"Словарь ударений загружен: {len(self.stress_map)} слов.")
+            _LOGGER.info(f"Словарь ударений: {len(self.stress_map)} обычных, {len(self.capitalized_stress_map)} имен собственных.")
         except Exception as e:
             _LOGGER.error(f"Ошибка загрузки словаря ударений: {e}")
 
     def _apply_fix_match(self, match: re.Match) -> str:
         """Универсальная замена с сохранением регистра."""
         word = match.group(0)
+        if not word: return word
+        
         low_word = word.lower()
+        is_capitalized = word[0].isupper()
 
-        # 1. ПРОВЕРКА ЦЕЛОГО СЛОВА
-        # Из пользовательского словаря (user.txt)
+        # 1. ПРОВЕРКА ИМЕН СОБСТВЕННЫХ
+        if is_capitalized and low_word in self.capitalized_stress_map:
+            return self._restore_case(word, self.capitalized_stress_map[low_word])
+
+        # 2. ПРОВЕРКА ОБЫЧНЫХ СЛОВ
         if low_word in self.stress_map:
             return self._restore_case(word, self.stress_map[low_word])
         
-        # Ёфикация (yo.txt), если включено
+        # 3. Ёфикация (yo.txt), если включено
         if self.use_yo and low_word in self.yo_map:
             return self._restore_case(word, self.yo_map[low_word])
 
-        # 2. При наличии дефиса
-        if '-' in low_word:
-            parts = low_word.split('-')
-            new_parts = []
+        # 4. При наличии дефиса (обрабатываем части)
+        if '-' in word:
+            parts_orig = word.split('-')
+            new_parts =[]
             changed = False
             
-            for p in parts:
-                # Проверка частей (только user.txt)
-                if p in self.stress_map:
-                    new_parts.append(self.stress_map[p])
+            for p_orig in parts_orig:
+                if not p_orig:
+                    new_parts.append(p_orig)
+                    continue
+                    
+                p_low = p_orig.lower()
+                p_is_cap = p_orig[0].isupper()
+                
+                if p_is_cap and p_low in self.capitalized_stress_map:
+                    new_parts.append(self._restore_case(p_orig, self.capitalized_stress_map[p_low]))
+                    changed = True
+                elif p_low in self.stress_map:
+                    new_parts.append(self._restore_case(p_orig, self.stress_map[p_low]))
                     changed = True
                 else:
-                    new_parts.append(p)
+                    new_parts.append(p_orig)
             
             if changed:
-                return self._restore_case(word, '-'.join(new_parts))
+                return '-'.join(new_parts)
                 
         return word
 
