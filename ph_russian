@@ -991,30 +991,55 @@ endphoneme
 phoneme ja
   vwl  starttype #i endtype #a
 
-  IF NOT thisPh(isWordEnd) THEN
-    
-    IF nextVowel(isMaxStress) THEN
+  // Логика редукции для безударных позиций
+  IF NOT thisPh(isMaxStress) THEN
+
+    // В конце слова ja
+    IF thisPh(isWordEnd) THEN
+
+    // 1. Перед ударением (японец, язык)
+    ELIF nextVowel(isMaxStress) THEN
       ChangeIfUnstressed(jI)
-      
+
+    // 2. после ударения
     ELIF thisPh(isAfterStress) THEN
-      // Ступенчатая проверка вместо AND/OR:
+
+      // Последний слог в слове
       IF thisPh(isFinalVowel) THEN
+        // Оставляем ja
         IF nextPh(t) THEN
-          // Ничего не меняем для -ят
+          // строят
         ELIF nextPh(s;) THEN
-          // Ничего не меняем для -ясь
+          // нагибаясь
+        ELIF nextPh(m) THEN
+          // кривляниям
+        ELIF nextPh(x) THEN
+          // песнях
         ELSE
+          // Все остальные заударные (заяц, пояс) -> Иканье
           ChangeIfUnstressed(jI)
         ENDIF
+
+      // Предпоследний слог
+      ELIF nextVowel(isFinalVowel) THEN
+        // Оставляем ja
+        IF nextPh(ts) THEN
+          // -тся -ться  ( см. замены для т в ru_rules)
+        ELIF nextPh(m;) THEN
+          // змеями
+        ELSE
+          ChangeIfUnstressed(jI) // (выяснить)
+        ENDIF
+
       ELSE
+        // Прочие заударные позиции
         ChangeIfUnstressed(jI)
       ENDIF
-      
+
     ELSE
-      // Если это 2-й или 3-й предударный слог
+      // 2-й и 3-й предударные слоги
       ChangeIfUnstressed(jI)
     ENDIF
-    
   ENDIF
 
   IF thisPh(isMaxStress) THEN
@@ -1082,10 +1107,12 @@ phoneme a
   vwl   starttype #a  endtype #a
   length 100
 
+  // 1. Исключение для звука [j]
   IF prevPhW(j) THEN
-    // Ничего не меняем
+    // Ничего не делаем, пропускаем к финальному FMT
   ELSE
     
+    // 2. УДАРНАЯ ПОЗИЦИЯ (выбор между глубоким 'A' и мягким 'a')
     IF thisPh(isMaxStress) THEN
       IF prevPhW(isPalatal) THEN
         ChangePhoneme(a)
@@ -1093,32 +1120,54 @@ phoneme a
         ChangePhoneme(A)
       ENDIF
       
+    // 3. БЕЗУДАРНАЯ ПОЗИЦИЯ
     ELSE
       IF prevPhW(isPalatal) THEN
         
+        // ПЕРВЫЙ ПРЕДУДАРНЫЙ СЛОГ (пятак, часы)
         IF nextVowel(isMaxStress) THEN
           ChangePhoneme(I)
           
+        // После ударения)
         ELIF thisPh(isAfterStress) THEN
+
+          // Последний гласный
           IF thisPh(isFinalVowel) THEN
             IF nextPh(t) THEN
-              ChangePhoneme(V) 
+              ChangePhoneme(V)     // -ят (исходят)
             ELIF nextPh(s;) THEN
-              ChangePhoneme(V) 
+              ChangePhoneme(V)     // -ясь (нагибаясь)
+            ELIF nextPh(m) THEN
+              ChangePhoneme(V)     // -ям (полям)
+            ELIF nextPh(x) THEN
+              ChangePhoneme(V)     // -ях (песнях)
             ELSE
-              ChangePhoneme(I)
+              ChangePhoneme(I)     // память, витязь, месяц
             ENDIF
+
+          // Предпоследний гласный
+          ELIF nextVowel(isFinalVowel) THEN
+            IF nextPh(ts) THEN
+              ChangePhoneme(V)     // -ятся (строятся, видятся)
+            ELIF nextPh(m;) THEN
+              ChangePhoneme(V)     // -ями (пулями)
+            ELSE
+              ChangePhoneme(I)     // выяснить, пояснить
+            ENDIF
+
           ELSE
+            // Все прочие заударные позиции
             ChangePhoneme(I)
           ENDIF
           
         ELSE
+          // 2-й и 3-й предударные слоги (пятачок)
           ChangePhoneme(I)
         ENDIF
         
-      ENDIF
-    ENDIF
-  ENDIF
+      ENDIF // конец блока isPalatal
+    ENDIF // конец безударного блока
+  ENDIF // конец блока исключения j
 
   IF thisPh(isWordEnd) THEN
     FMT(vowel/a#_3)
