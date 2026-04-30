@@ -234,7 +234,7 @@ class AudioCleaner:
         # --- НАСТРОЙКИ СЕРВЕРА TTS ---
         self.TTS_HOST = "127.0.0.1"
         self.TTS_PORT = 10200
-        self.TTS_DEFAULT_VOICE = "ru_RU-terra-medium_epoch5039"
+        self.TTS_DEFAULT_VOICE = "ru_RU-terra-medium_epoch5819"
         
         self.root.configure(bg=self.BG_COLOR)
         self.root.focus_force()
@@ -765,28 +765,37 @@ class AudioCleaner:
         return False
 
     def open_editor(self, event=None):
-
         if hasattr(self, 'editor') and self.editor.winfo_exists():
-            self.editor.focus_force() # Просто выводим на передний план
+            self.editor.focus_force()
             return
 
         if not self.current_text and not self.current_file_path: return
 
-        self.editor = tk.Toplevel(self.root)
+        # 1. Определяем, какое окно сейчас активно (главное или аудио-редактор)
+        parent_win = self.active_editor.root if self.active_editor else self.root
+
+        self.editor = tk.Toplevel(parent_win)
         self.editor.title("Editor")
         
-        self.root.update_idletasks()
-        root_w, root_h = self.root.winfo_width(), self.root.winfo_height()
-        root_x, root_y = self.root.winfo_x(), self.root.winfo_y()
+        # 2. Центрируем текст относительно активного окна
+        parent_win.update_idletasks()
+        p_w, p_h = parent_win.winfo_width(), parent_win.winfo_height()
+        p_x, p_y = parent_win.winfo_x(), parent_win.winfo_y()
         width, height = 600, 250
-        x = root_x + (root_w // 2) - (width // 2)
-        y = root_y + (root_h // 2) - (height // 2)
+        x = p_x + (p_w // 2) - (width // 2)
+        y = p_y + (p_h // 2) - (height // 2)
         self.editor.geometry(f"{width}x{height}+{x}+{y}")
 
         self.editor.configure(bg=self.BG_COLOR)
-        self.editor.transient(self.root)
+        self.editor.transient(parent_win) # Привязываем к активному окну
         self.editor.grab_set() 
-        self.editor.bind("<Escape>", lambda e: self.editor.destroy())
+
+        # 3. Функция правильного закрытия с возвратом фокуса
+        def close_editor(e=None):
+            self.editor.destroy()
+            parent_win.focus_force() # Возвращаем фокус родителю!
+
+        self.editor.bind("<Escape>", close_editor)
 
         lbl = tk.Label(self.editor, text="Transcription:", bg=self.BG_COLOR, fg=self.FG_COLOR, font=("Helvetica", max(10, self.FONT_SIZE-4)))
         lbl.pack(pady=(8,0))
@@ -830,10 +839,14 @@ class AudioCleaner:
             txt.insert(tk.INSERT, "э")
             txt.focus_set()
 
-        def save_changes():
+        # 4. Обновленная функция сохранения (содержит фикс с Enter из предыдущего ответа)
+        def save_changes(event=None):
             new_text = txt.get("1.0", tk.END).strip()
             self.save_transcription(new_text)
-            self.editor.destroy()
+            close_editor() # Закрываем правильным способом
+            return "break"
+
+        txt.bind('<Return>', save_changes)
 
         btn_frame.columnconfigure(0, weight=1)
         btn_frame.columnconfigure(7, weight=1)
