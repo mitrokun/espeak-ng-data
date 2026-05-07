@@ -12,7 +12,7 @@ LOCAL_API_BASE = "http://localhost:8040/v1"
 LOCAL_API_KEY = "lemonade"
 MODEL_NAME = "user.gemma-4-E4B-it-GGUF" 
 
-BATCH_SIZE = 15
+BATCH_SIZE = 25
 MAX_WORDS_SIDE = 6       # Кол-во слов вокруг таргета для ллм
 DISPLAY_WINDOW = 4       # Кол-во слов вокруг таргета для пользователя.
 MAX_CHARS_SEARCH = 400   # Лимит длины одного предложения
@@ -131,108 +131,178 @@ def apply_and_save(original_text, replacements, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(modified)
 
-def process_text(input_file, output_file):
+def process_text(input_file, output_file, start_batch=1):
     abs_dict, ambig_dict = load_dictionary(DICT_FILE)
+    
+    target_file = input_file
+    # Логика подхвата прогресса: если старт со смещением, берем уже созданный файл _yo.txt
+    if start_batch > 1 and os.path.exists(output_file):
+        target_file = output_file
+        print(f"\n[ИНФО] Флаг запуска со смещением (Батч {start_batch}). Читаем уже начатый файл: {target_file}")
+    else:
+        print(f"\nАнализ '{target_file}'...")
+
     try:
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(target_file, 'r', encoding='utf-8') as f:
             text = f.read()
     except Exception as e:
         print(f"Ошибка файла: {e}"); return
 
-    print(f"Анализ '{input_file}'...")
     word_pattern = re.compile(r'[А-Яа-яЁё]+')
     auto_reps, ambig_matches = [],[]
     
     for m in word_pattern.finditer(text):
         word = m.group(0)
-        if 'ё' in word.lower(): continue
-        w_low = word.lower()
-        if w_low in abs_dict:
-            auto_reps.append((m.start(), m.end(), restore_case(word, abs_dict[w_low])))
-        elif w_low in ambig_dict:
-            ambig_matches.append({"match": m, "orig": word, "yo": restore_case(word, ambig_dict[w_low])})
+        # Приводим всё к 'е', чтобы найти слово в словаре, даже если оно уже заменено
+        word_e_lower = word.lower().replace('ё', 'е')
+        
+        if word_e_lower in abs_dict:
+            yo_variant = restore_case(word, abs_dict[word_e_lower])
+            if word != yo_variant: # Добавляем, только если оно еще не заменено
+                auto_reps.append((m.start(), m.end(), yo_variant))
+        elif word_e_lower in ambig_dict:
+            yo_variant = restore_case(word, ambig_dict[word_e_lower])
+            base_e = restore_case(word, word_e_lower)
+            ambig_matches.append({
+                "match": m, 
+                "current_in_text": word, # слово как оно есть сейчас в файле
+                "base_e": base_e,        # чистый вариант через 'е'
+                "yo_variant": yo_variant # вариант с 'ё'
+            })
 
-    print(f"Словарь: {len(auto_reps)} замен. Спорных: {len(ambig_matches)}")
+    print(f"Словарь: {len(auto_reps)} замен (новых). Спорных (всего в книге): {len(ambig_matches)}")
     apply_and_save(text, auto_reps, output_file)
     
     if not ambig_matches: return
 
+    batches =[]
+    for i in range(0, len(ambig_matches), BATCH_SIZE):
+        chunk = ambig_matches[i:i+BATCH_SIZE]
+        reqs =[]
+        for j, item in enumerate(chunk):
+            raw_context = get_sentence_context(text, item["match"].start(), item["match"].end())
+            # Нормализуем для LLM, чтобы она видела чистую 'е' в контексте
+            context = raw_context.replace(f"<TARGET>{item['current_in_text']}</TARGET>", f"<TARGET>{item['base_e']}</TARGET>")
+            reqs.append({
+                "id": j, 
+                "context": context, 
+                "variants": [item["base_e"], item["yo_variant"]]
+            })
+        batches.append({"items": chunk, "requests": reqs})
+
+    total_batches = len(batches)
+    start_idx = max(0, min(start_batch - 1, total_batches - 1))
+
+    if start_idx > 0:
+        print(f"\n[ИНФО] Пропускаем первые {start_idx} батчей. Они останутся нетронутыми в файле {output_file}.")
+
     try:
-        input("\n[Готово] Нажмите Enter для запуска llm (Ctrl+C для выхода)...")
+        input(f"\n[Готово] Нажмите Enter для запуска llm (Батч {start_idx + 1}/{total_batches}) [Ctrl+C для выхода]...")
     except KeyboardInterrupt:
         print("\n[Выход] Отмена пользователем."); return
 
-    batches = []
-    for i in range(0, len(ambiguous_matches := ambig_matches), BATCH_SIZE):
-        chunk = ambiguous_matches[i:i+BATCH_SIZE]
-        reqs = [{"id": j, "context": get_sentence_context(text, item["match"].start(), item["match"].end()), 
-                 "variants": [item["orig"], item["yo"]]} for j, item in enumerate(chunk)]
-        batches.append({"items": chunk, "requests": reqs})
-
-    approved_reps = []
+    approved_reps =[]
     futures = {}
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
-            initial_batches = min(PREFETCH_QUEUE, len(batches))
-            for i in range(initial_batches):
+            # Предзаполняем конвейер
+            initial_fill = min(start_idx + PREFETCH_QUEUE, total_batches)
+            for i in range(start_idx, initial_fill):
                 futures[i] = executor.submit(fetch_llm_response, batches[i]["requests"])
 
-            for i in range(len(batches)):
+            for i in range(start_idx, total_batches):
                 if not futures[i].done():
-                    print(f"\r\033[96m[~] Локальная модель генерирует ответ {i+1}/{len(batches)}...\033[0m", end="", flush=True)
+                    print(f"\r\033[96m[~] Локальная модель генерирует ответ {i+1}/{total_batches}...\033[0m", end="", flush=True)
 
                 res_data = futures[i].result()
                 print("\r" + " " * 70 + "\r", end="")
                 
-                print(f"\n{'='*60}")
-                print(f"Батч {i+1}/{len(batches)} (вхождения {i*BATCH_SIZE + 1}-{min((i+1)*BATCH_SIZE, len(ambiguous_matches))})")
+                # Собираем ответы от LLM (в словарь для быстрого доступа)
+                llm_results = {res.get("id", idx): res.get("replacement", "") for idx, res in enumerate(res_data.get("results",[]))}
                 
-                batch_reps = []
-                lines_to_print = []
-                max_left_len = 0
-                
-                for idx, res in enumerate(res_data.get("results",[])):
-                    req_id = res.get("id", idx)
-                    if req_id >= len(batches[i]["items"]): continue
-                    
-                    proposed = res.get("replacement", "")
-                    item = batches[i]["items"][req_id]
-                    ctx = batches[i]["requests"][req_id]['context']
-                    
+                batch_state = []
+                for idx, item in enumerate(batches[i]["items"]):
+                    base_e = item["base_e"]
+                    ctx = batches[i]["requests"][idx]['context']
                     user_view = shrink_for_user(ctx)
-                    left_part, sep, right_part = user_view.partition(f"<TARGET>{item['orig']}</TARGET>")
                     
-                    if len(left_part) > max_left_len: max_left_len = len(left_part)
-                    
-                    is_rep = (item["orig"] != proposed and 'ё' in proposed.lower())
-                    if is_rep: batch_reps.append((item["match"].start(), item["match"].end(), proposed))
-                    
-                    lines_to_print.append({
-                        "left": left_part, 
-                        "orig": item["orig"], 
-                        "prop": proposed, 
-                        "right": right_part, 
-                        "is_rep": is_rep
+                    proposed = llm_results.get(idx, base_e)
+                    if not proposed: # Fallback если модель вернула пустую строку
+                        proposed = base_e
+                        
+                    batch_state.append({
+                        "base_e": base_e,
+                        "yo_variant": item["yo_variant"],
+                        "current_in_text": item["current_in_text"],
+                        "choice": proposed,
+                        "match": item["match"],
+                        "user_view": user_view
                     })
-                
-                for line in lines_to_print:
-                    # Выбираем способ выравнивания
-                    padding = " " * (max_left_len - len(line["left"])) if ALIGN_TARGETS else ""
-                    
-                    target = f"\033[92m[{line['prop']}]\033[0m" if line["is_rep"] else f"\033[91m[{line['orig']}]\033[0m"
-                    bullet = "•" if line["is_rep"] else "◦"
-                    
-                    print(f"{bullet} {padding}{line['left']}{target}{line['right']}")
 
-                ans = input(f"\n[Замен: {len(batch_reps)}] Принять? [Enter - да, q - выход]: ").strip().lower()
-                if ans == 'q': os._exit(0)
+                while True:
+                    print(f"\n{'='*60}")
+                    print(f"Батч {i+1}/{total_batches} (вхождения {i*BATCH_SIZE + 1}-{min((i+1)*BATCH_SIZE, len(ambig_matches))})")
                     
-                approved_reps.extend(batch_reps)
+                    current_batch_replacements = []
+                    lines_to_print =[]
+                    max_left_len = 0
+                    
+                    for idx, state in enumerate(batch_state):
+                        base_e = state["base_e"]
+                        choice = state["choice"]
+                        current_in_text = state["current_in_text"]
+                        user_view = state["user_view"]
+                        
+                        left_part, sep, right_part = user_view.partition(f"<TARGET>{base_e}</TARGET>")
+                        if len(left_part) > max_left_len: 
+                            max_left_len = len(left_part)
+                        
+                        # Сохраняем физически только если выбор не равен тому, что сейчас в файле
+                        if choice != current_in_text:
+                            current_batch_replacements.append((state["match"].start(), state["match"].end(), choice))
+                            
+                        # is_rep используется для зеленой/красной подсветки
+                        is_rep = (choice != base_e and 'ё' in choice.lower())
+                        
+                        lines_to_print.append({
+                            "idx": idx + 1,
+                            "left": left_part, 
+                            "choice": choice, 
+                            "right": right_part, 
+                            "is_rep": is_rep
+                        })
+                    
+                    # Отрисовка
+                    for line in lines_to_print:
+                        padding = " " * (max_left_len - len(line["left"])) if ALIGN_TARGETS else ""
+                        target = f"\033[92m[{line['choice']}]\033[0m" if line["is_rep"] else f"\033[91m[{line['choice']}]\033[0m"
+                        bullet = "•" if line["is_rep"] else "◦"
+                        
+                        print(f"{line['idx']:2d} | {bullet} {padding}{line['left']}{target}{line['right']}")
+
+                    ans = input(f"\n[Замен в батче: {len(current_batch_replacements)}] [Enter - ок, q - выход, НОМЕР(А) - инверсия]: ").strip().lower()
+                    
+                    if ans == 'q': 
+                        os._exit(0)
+                    elif ans == '': 
+                        break
+                    else:
+                        parts = ans.split()
+                        if all(p.isdigit() for p in parts):
+                            for p in parts:
+                                row_idx = int(p) - 1
+                                if 0 <= row_idx < len(batch_state):
+                                    st = batch_state[row_idx]
+                                    st["choice"] = st["base_e"] if st["choice"] == st["yo_variant"] else st["yo_variant"]
+                        else:
+                            print("\033[91m[!] Ошибка ввода. Введите номера через пробел.\033[0m")
+                    
+                approved_reps.extend(current_batch_replacements)
                 apply_and_save(text, auto_reps + approved_reps, output_file)
                 
                 next_idx = i + PREFETCH_QUEUE
-                if next_idx < len(batches):
+                if next_idx < total_batches:
                     futures[next_idx] = executor.submit(fetch_llm_response, batches[next_idx]["requests"])
                 del futures[i]
 
@@ -242,10 +312,13 @@ def process_text(input_file, output_file):
     print(f"\n{'='*40}\nОбработка завершена. Файл: {output_file}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--b", type=str, required=True, help="Имя файла")
+    parser = argparse.ArgumentParser(description="Интеллектуальная расстановка буквы Ё (Локальная LLM).")
+    parser.add_argument("-b", "--book", type=str, required=True, help="Имя входного файла (с .txt или без)")
+    parser.add_argument("-s", "--start", type=int, default=1, help="Номер батча, с которого начать (по умолчанию 1)")
+    
     args = parser.parse_args()
     
-    fname = args.b if args.b.endswith(".txt") else f"{args.b}.txt"
+    fname = args.book if args.book.endswith(".txt") else f"{args.book}.txt"
     out = f"{os.path.splitext(fname)[0]}_yo.txt"
-    process_text(fname, out)
+    
+    process_text(fname, out, start_batch=args.start)
