@@ -899,7 +899,17 @@ endphoneme
 phoneme o
   vwl starttype #o endtype #o
   length 100
-  ChangeIfNotStressed(V)
+
+  IF NOT thisPh(isMaxStress) THEN
+    IF nextVowel(isMaxStress) THEN
+      // 1-я степень редукции
+      ChangePhoneme(a#)
+    ELSE
+      // 2-я степень редукции (все остальные безударные слога)
+      ChangePhoneme(V)
+    ENDIF
+  ENDIF
+
   FMT(vwl_ru/o)
 endphoneme
 
@@ -1025,6 +1035,8 @@ phoneme ja
         // Оставляем ja
         IF nextPh(ts) THEN
           // -тся -ться  ( см. замены для т в ru_rules)
+        ELIF nextPh(s;) THEN
+          // переодевшаяся
         ELIF nextPh(m;) THEN
           // змеями
         ELSE
