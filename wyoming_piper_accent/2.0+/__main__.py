@@ -77,7 +77,7 @@ async def main() -> None:
     parser.add_argument(
         "--sentence-silence",
         type=float,
-        default=0.0,
+        default=0.2,
         help="Seconds of silence after each sentence",
     )
     parser.add_argument(

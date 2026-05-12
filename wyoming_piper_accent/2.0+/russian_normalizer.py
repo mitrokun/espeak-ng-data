@@ -22,6 +22,23 @@ class RussianNormalizer:
         self.yo_map = {}
         self.stress_map = {}
         self.capitalized_stress_map = {}
+
+        self.compound_prefixes = {
+            'зелено': 'зелёно',
+            'черно': 'чёрно',
+            'темно': 'тёмно',
+            'пестро': 'пёстро',
+        }
+        
+        # Регулярное выражение для поиска годов
+        # Захватывает опциональный предлог, число (до 4 цифр), опциональное окончание (-й, -е, -м) и само слово год
+        self.year_pattern = re.compile(
+            r'\b(?P<num>\d{1,4})'              # Число (год)
+            r'(?:-?[а-яё]{1,3})?'              # Любой из стандартных суффиксов (игнорируем)
+            r'\s+'                             # Пробел
+            r'(?P<god>год[а-яё]{0,3})\b',      # Форма слова "год"
+            re.IGNORECASE
+        )
         
         if not NUM2WORDS_AVAILABLE:
             _LOGGER.warning("Библиотека `num2words` не найдена. Преобразование чисел в текст недоступно.")
@@ -50,7 +67,7 @@ class RussianNormalizer:
         }
 
     def _load_yo_dictionary(self):
-        """Загрузка чистого словаря ёфикации."""
+        # ... (метод без изменений) ...
         try:
             dict_path = Path(__file__).parent / "yo.txt"
             if not dict_path.exists():
@@ -68,7 +85,7 @@ class RussianNormalizer:
             _LOGGER.error(f"Ошибка загрузки словаря ё: {e}")
 
     def _load_stress_dictionary(self):
-        """Загрузка пользовательских ударений из user.txt."""
+         # ... (метод без изменений) ...
         try:
             dict_path = Path(__file__).parent / "user.txt"
             if not dict_path.exists():
@@ -81,11 +98,8 @@ class RussianNormalizer:
                         continue
                     
                     if '+' in line:
-                        # Убираем плюс, чтобы проверить с какой буквы написано слово
                         word_clean = line.replace('+', '')
                         is_capitalized = word_clean[0].isupper()
-                        
-                        # В словарях ключи и значения всегда храним в нижнем регистре
                         low_key = word_clean.lower()
                         low_val = line.lower()
                         
@@ -99,44 +113,47 @@ class RussianNormalizer:
             _LOGGER.error(f"Ошибка загрузки словаря ударений: {e}")
 
     def _apply_fix_match(self, match: re.Match) -> str:
-        """Универсальная замена с сохранением регистра."""
+        # ... (метод без изменений) ...
         word = match.group(0)
         if not word: return word
         
         low_word = word.lower()
         is_capitalized = word[0].isupper()
 
-        # 1. ПРОВЕРКА ИМЕН СОБСТВЕННЫХ
         if is_capitalized and low_word in self.capitalized_stress_map:
             return self._restore_case(word, self.capitalized_stress_map[low_word])
-
-        # 2. ПРОВЕРКА ОБЫЧНЫХ СЛОВ
         if low_word in self.stress_map:
             return self._restore_case(word, self.stress_map[low_word])
-        
-        # 3. Ёфикация (yo.txt), если включено
         if self.use_yo and low_word in self.yo_map:
             return self._restore_case(word, self.yo_map[low_word])
 
-        # 4. При наличии дефиса (обрабатываем части)
         if '-' in word:
             parts_orig = word.split('-')
             new_parts =[]
             changed = False
             
-            for p_orig in parts_orig:
+            for i, p_orig in enumerate(parts_orig):
                 if not p_orig:
                     new_parts.append(p_orig)
                     continue
                     
                 p_low = p_orig.lower()
-                p_is_cap = p_orig[0].isupper()
+                is_last = (i == len(parts_orig) - 1)
                 
+                if not is_last and p_low in self.compound_prefixes:
+                    new_parts.append(self._restore_case(p_orig, self.compound_prefixes[p_low]))
+                    changed = True
+                    continue
+
+                p_is_cap = p_orig[0].isupper()
                 if p_is_cap and p_low in self.capitalized_stress_map:
                     new_parts.append(self._restore_case(p_orig, self.capitalized_stress_map[p_low]))
                     changed = True
                 elif p_low in self.stress_map:
                     new_parts.append(self._restore_case(p_orig, self.stress_map[p_low]))
+                    changed = True
+                elif self.use_yo and p_low in self.yo_map:
+                    new_parts.append(self._restore_case(p_orig, self.yo_map[p_low]))
                     changed = True
                 else:
                     new_parts.append(p_orig)
@@ -147,7 +164,6 @@ class RussianNormalizer:
         return word
 
     def _restore_case(self, original: str, replacement: str) -> str:
-        """Переносит регистр с оригинала на замену (Учитывает ЗАГЛАВНЫЕ и С большой буквы)."""
         if original.isupper():
             return replacement.upper()
         if original[0].isupper():
@@ -155,10 +171,8 @@ class RussianNormalizer:
         return replacement
 
     def _replace_plus_sign(self, text: str) -> str:
-
         text = re.sub(r'\s*\+\s*(?=\d)', ' плюс ', text)
         text = re.sub(r'(?<=[a-zA-Zа-яА-ЯёЁ])\+(?![a-zA-Zа-яА-ЯёЁ])', ' плюс', text)
-        
         return text
 
     def _get_noun_form(self, n: int, forms: list) -> str:
@@ -169,6 +183,7 @@ class RussianNormalizer:
         return forms[2]
 
     def _float_to_text(self, num_str: str, for_percent: bool = False) -> str:
+        # ... (метод без изменений) ...
         if not NUM2WORDS_AVAILABLE:
             return num_str.replace('.', ' и ').replace(',', ' и ')
         clean_num = num_str.replace(',', '.')
@@ -204,6 +219,7 @@ class RussianNormalizer:
             return num_str
 
     def _replace_percentages(self, match: re.Match) -> str:
+        # ... (метод без изменений) ...
         num_str = match.group(1).replace(',', '.')
         if '.' in num_str:
             parts = num_str.split('.')
@@ -211,16 +227,61 @@ class RussianNormalizer:
             if len(frac_part_str) == 1:
                 text_num = self._float_to_text(num_str, for_percent=True)
                 frac_val = int(frac_part_str)
-                word = self._get_noun_form(frac_val, ['процент', 'процента', 'процентов'])
+                word = self._get_noun_form(frac_val,['процент', 'процента', 'процентов'])
                 return f"{text_num} {word}"
             else:
                 text_num = self._float_to_text(num_str)
                 return f"{text_num} процента"
-        word = self._get_noun_form(int(num_str), ['процент', 'процента', 'процентов'])
+        word = self._get_noun_form(int(num_str),['процент', 'процента', 'процентов'])
         return f"{num_str} {word}"
 
     def _replace_floats(self, match: re.Match) -> str:
         return self._float_to_text(match.group(0))
+
+    def _replace_years(self, match: re.Match) -> str:
+        if not NUM2WORDS_AVAILABLE:
+            return match.group(0)
+
+        num_str = match.group('num')
+        god_word_raw = match.group('god')
+        god_word = god_word_raw.lower()
+
+        try:
+            ordinal_text = num2words(int(num_str), to='ordinal', lang='ru')
+        except:
+            return match.group(0)
+
+        suffix_map = {
+            'год':    {'ый': 'ый',  'ой': 'ой',  'ий': 'ий'},   # 1961 год
+            'года':   {'ый': 'ого', 'ой': 'ого', 'ий': 'ьего'}, # 1961 года
+            'году':   {'ый': 'ом',  'ой': 'ом',  'ий': 'ьем'},  # 1961 году
+            'годом':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},  # 1961 годом
+            'годы':   {'ый': 'ые',  'ой': 'ые',  'ий': 'ьи'},   # 1960 годы
+            'годов':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},  # 1960 годов
+            'годам':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},  # 1960 годам
+            'годами': {'ый': 'ыми', 'ой': 'ыми', 'ий': 'ьими'}, # 1960 годами
+            'годах':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},  # 1960 годах
+        }
+
+        target_rules = suffix_map.get(god_word, suffix_map['год'])
+
+        words = ordinal_text.split()
+        last_word = words[-1]
+
+        # Заменяем окончание только последнего слова
+        for base_end, new_end in target_rules.items():
+            if last_word.endswith(base_end):
+                last_word = last_word[:-len(base_end)] + new_end
+                break
+        
+        words[-1] = last_word
+        normalized_num = " ".join(words)
+
+        # Сохраняем регистр первого слова, если он был
+        if match.group(0)[0].isupper():
+            normalized_num = normalized_num[0].upper() + normalized_num[1:]
+
+        return f"{normalized_num} {god_word_raw}"
 
     def normalize(self, text: str) -> str:
         # 0. Наречия
@@ -231,14 +292,17 @@ class RussianNormalizer:
         text = self._replace_plus_sign(text)
 
         # 2. Ударения (fix.txt) И Ёфикация (yo.txt)
-        # Объединяем поиск в один проход по словам для скорости
         if self.stress_map or (self.use_yo and self.yo_map):
             text = re.sub(r'[а-яА-ЯёЁ-]+', self._apply_fix_match, text)
 
         # 3. Проценты
         text = re.sub(r'(\d+(?:[.,]\d+)?)\s*%', self._replace_percentages, text)
         
-        # 4. Оставшиеся дроби
+        # 4. Года (например: в 1961 году, 1930 годами)
+        # Должно идти до парсинга оставшихся дробей и обычных чисел, чтобы перехватить конструкции дат
+        text = self.year_pattern.sub(self._replace_years, text)
+        
+        # 5. Оставшиеся дроби
         text = re.sub(r'\b\d+[.,]\d+\b', self._replace_floats, text)
         
         return text
