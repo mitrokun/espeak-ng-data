@@ -960,9 +960,8 @@ endphoneme
 phoneme e
   vwl starttype #e endtype #e
   length 120
-  IF prevPh(r;) THEN
-    // Ничего не делать: /e/ остаётся /e/ после r;
-  ELIF prevPh(ts) THEN
+
+  IF prevPh(ts) THEN
     ChangePhoneme(E)
   ELIF prevPh(Z) THEN
     ChangeIfNotStressed(y)
@@ -1033,7 +1032,7 @@ phoneme ja
       // Предпоследний слог
       ELIF nextVowel(isFinalVowel) THEN
         // Оставляем ja
-        IF nextPh(ts) THEN
+        IF nextPh(ts^) THEN
           // -тся -ться  ( см. замены для т в ru_rules)
         ELIF nextPh(s;) THEN
           // переодевшаяся
@@ -1159,7 +1158,7 @@ phoneme a
 
           // Предпоследний гласный
           ELIF nextVowel(isFinalVowel) THEN
-            IF nextPh(ts) THEN
+            IF nextPh(ts^) THEN
               ChangePhoneme(V)     // -ятся (строятся, видятся)
             ELIF nextPh(m;) THEN
               ChangePhoneme(V)     // -ями (пулями)
