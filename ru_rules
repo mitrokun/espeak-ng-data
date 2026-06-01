@@ -1,25 +1,25 @@
-// **************************************************************************
+// ****************************************************************************
 // *   Copyright (C) 2007 to 2013 by Jonathan Duddington					*
 // *   email: jonsd@users.sourceforge.net									*
-// *   Copyright (C) 2018 Reece H. Dunn										*
+// *   Copyright (C) 2018 Reece H. Dunn									*
 // *   Copyright (C) 2022 by Kirill Kolov									*
 // *   email: kirillkolovi@gmail.com										*
-// *																		*
-// *																		*
-// *   This program is free software; you can redistribute it and/or modify	*
+// *																	*
+// *																	*
+// *   This program is free software; you can redistribute it and/or modify		*
 // *   it under the terms of the GNU General Public License as published by	*
-// *   the Free Software Foundation; either version 3 of the License, or	*
+// *   the Free Software Foundation; either version 3 of the License, or			*
 // *   (at your option) any later version.									*
-// *																		*
-// *   This program is distributed in the hope that it will be useful,		*
-// *   but WITHOUT ANY WARRANTY; without even the implied warranty of		*
-// *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the		*
+// *																	*
+// *   This program is distributed in the hope that it will be useful,				*
+// *   but WITHOUT ANY WARRANTY; without even the implied warranty of	*
+// *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the	*
 // *   GNU General Public License for more details.							*
-// *																		*
-// *   You should have received a copy of the GNU General Public License	*
-// *   along with this program; if not, see:								*
-// *               <http://www.gnu.org/licenses/>.							*
-// **************************************************************************/
+// *																	*
+// *   You should have received a copy of the GNU General Public License		*
+// *   along with this program; if not, see:									*
+// *               <http://www.gnu.org/licenses/>.								*
+// ***************************************************************************/
 
 // Russian translation rules
 // This file is UTF8 encoded
@@ -76,6 +76,8 @@
         б (Y		b;     // Базовое смягчение (белый, любить)
         бб (Y	b;     // Ассимиляция (рябь бы)
 
+	а) бе (лла	bE
+
 .group в
 	в       v
 // --- 1. Исключения (непроизносимый 'в') ---
@@ -86,22 +88,22 @@
 // --- 2. Оглушение (до [ф] и [ф']) ---
 
 // Оглушение в конце слова
-        в (_    f      // Стандартное оглушение: кров -> [кроф]
+        в (_		f      // Стандартное оглушение: кров -> [кроф]
 
 // Оглушение и смягчение в конце слова перед Ь
-        в (ь_   f;     // кровь -> [кроф']
+        в (ь_	f;     // кровь -> [кроф']
 
 // Оглушение перед глухими согласными (исправлено)
-        в (к    f      // вкус
-        в (п    f      // вперёд
-        в (с    f      // все
-        в (т    f      // вторник
-        в (ф    f 
-        в (х    f      // вход
-        в (ц    f      // вцепиться 
-        в (ч    f      // вчера
-        в (ш    f      // написавший
-        в (щ    f      // вщемиться 
+        в (к		f      // вкус
+        в (п		f      // вперёд
+        в (с		f      // все
+        в (т		f      // вторник
+        в (ф    		//эвфемизм
+        в (х		f      // вход
+        в (ц		f      // вцепиться 
+        в (ч		f      // вчера
+        в (ш		f      // написавший
+        в (щ		f      // вщемиться 
 
 // --- 3. Смягчение и ассимиляция по мягкости (до [в']) ---
         в (Y    v;     // Базовое смягчение (пять, вьюга)
@@ -330,7 +332,6 @@
         к (ж		g
         к (з		g
 
-
 .group л
         л		L
         лл		L
@@ -453,9 +454,10 @@
 	_) се (нсор	s'E	// сенсор...
         _) се (кс		s'E
         _) се (сси		sE
+	ата) се		s'E	//датасет
 	ра) ссч		S;
 	ра) сщ (е		S;S;
-	ст) се (лл		s'E
+	ст) се		s'E	// бестселлер
 	стс	(к		s^	// монархистский
 	тра) се (н 	s'E
 	шос) се (_	sE	// шоссе
@@ -511,6 +513,7 @@
         бар) те (р		tE	// бартер
         ин) те (рC		tE	// интернет, интерфейс, интервал
         ин) те (ра		tE	// интерактив
+	ин) те (нц		tE
         компью) те (р	tE	// компьютер
         прин) те (р		tE	// принтер
         роу) те (р		tE	// роутер
@@ -524,6 +527,9 @@
 	кафе) те			tE
 	ло) те (ре		tE
 	пан) те			tE
+	па) тте			t^E
+	ли) те (н			tE
+	ац) те (к			tE
 
 // --- 2. Аффрикаты [ц] и [ч] ---
 // 2.1 Глагольные окончания -тся, -ться -> [ца]
@@ -686,8 +692,8 @@
 	ь) ё		j'8
 	A) ё		j'8
 	_) ё		j'8
-	ж) ё		'O
-	ш) ё		'O
+	ж) ё		'o
+	ш) ё		'o
 	дн) ё (м	'o
 
 .group

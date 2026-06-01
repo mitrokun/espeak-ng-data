@@ -727,22 +727,6 @@ phoneme tS^
 endphoneme
 
 
-// Palatalized versions of consonants
-
-phoneme I^ // "silent i", palatilizes the preceding consonant
-  vwl starttype #i endtype #i
-  unstressed nsy
-  length 70
-  IF nextPh(isVowel) THEN
-    ChangePhoneme(;)
-  ENDIF
-  IF prevPh(m;) THEN
-    FMT(vwl_ro/mi)
-  ENDIF
-  FMT(vwl_ru/ii-)
-endphoneme
-
-
 //*******************************************************************
 // VOWELS
 //*******************************************************************
@@ -913,19 +897,11 @@ phoneme o
   FMT(vwl_ru/o)
 endphoneme
 
-
-phoneme O
+phoneme o#
   vwl starttype #o endtype #o
-  length 80
-  IF prevPhW(isPalatal) THEN
-    ChangePhoneme(8)
-  ENDIF
-  IF thisPh(isMaxStress) THEN
-    ChangePhoneme(o)
-  ENDIF
-  FMT(vwl_ru/oo)
+  length 100
+  FMT(vwl_ru/o)
 endphoneme
-
 
 phoneme u
   vwl starttype #u endtype #u
@@ -1099,14 +1075,6 @@ phoneme V#
 endphoneme
 
 
-phoneme Y // will not be used in future
-  vwl  starttype #u  endtype #u
-  unstressed
-  length 140
-  FMT(vowel/ii#)
-endphoneme
-
-
 phoneme A
   vwl  starttype #a  endtype #a
   length 100
@@ -1213,13 +1181,3 @@ phoneme a#
   length 100
   FMT(vowel/a#_3)
 endphoneme
-
-
-phoneme R4
-  liquid
-  lengthmod 6
-  Vowelin  f1=0  f2=1500 -300 300  f3=-200 80 rms=60 brk
-  Vowelout f1=2  f2=1500 -300 300  f3=-200 80
-  FMT(r3/r_ru2) addWav(r3/r_ru, 50)
-endphoneme
-
