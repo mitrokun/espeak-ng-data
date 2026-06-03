@@ -67,7 +67,7 @@ class RussianNormalizer:
         }
 
     def _load_yo_dictionary(self):
-        """Загрузка чистого словаря ёфикации."""
+        # ... (метод без изменений) ...
         try:
             dict_path = Path(__file__).parent / "yo.txt"
             if not dict_path.exists():
@@ -84,8 +84,7 @@ class RussianNormalizer:
         except Exception as e:
             _LOGGER.error(f"Ошибка загрузки словаря ё: {e}")
 
-    def _load_stress_dictionary(self):
-        """Загрузка пользовательских ударений из user.txt."""
+    def    _load_stress_dictionary(self):
         try:
             dict_path = Path(__file__).parent / "user.txt"
             if not dict_path.exists():
@@ -97,23 +96,32 @@ class RussianNormalizer:
                     if not line:
                         continue
                     
-                    if '+' in line:
+                    # ПРОВЕРЯЕМ: есть ли ударение (+) ИЛИ есть ли буква 'ё'
+                    if '+' in line or 'ё' in line.lower():
                         word_clean = line.replace('+', '')
                         is_capitalized = word_clean[0].isupper()
-                        low_key = word_clean.lower()
                         low_val = line.lower()
                         
-                        if is_capitalized:
-                            self.capitalized_stress_map[low_key] = low_val
-                        else:
-                            self.stress_map[low_key] = low_val
+                        # Генерируем два ключа: оригинальный и с заменой 'ё' на 'е'
+                        low_key_yo = word_clean.lower()
+                        low_key_e = low_key_yo.replace('ё', 'е')
+                        
+                        # Множество ключей, чтобы не делать лишней работы, если 'ё' нет 
+                        # (например, для слова Ма+ша ключ будет один)
+                        keys = {low_key_yo, low_key_e}
+                        
+                        for key in keys:
+                            if is_capitalized:
+                                self.capitalized_stress_map[key] = low_val
+                            else:
+                                self.stress_map[key] = low_val
             
             _LOGGER.info(f"Словарь ударений: {len(self.stress_map)} обычных, {len(self.capitalized_stress_map)} имен собственных.")
         except Exception as e:
             _LOGGER.error(f"Ошибка загрузки словаря ударений: {e}")
 
     def _apply_fix_match(self, match: re.Match) -> str:
-        """Универсальная замена с сохранением регистра."""
+        # ... (метод без изменений) ...
         word = match.group(0)
         if not word: return word
         
@@ -183,6 +191,7 @@ class RussianNormalizer:
         return forms[2]
 
     def _float_to_text(self, num_str: str, for_percent: bool = False) -> str:
+        # ... (метод без изменений) ...
         if not NUM2WORDS_AVAILABLE:
             return num_str.replace('.', ' и ').replace(',', ' и ')
         clean_num = num_str.replace(',', '.')
@@ -218,6 +227,7 @@ class RussianNormalizer:
             return num_str
 
     def _replace_percentages(self, match: re.Match) -> str:
+        # ... (метод без изменений) ...
         num_str = match.group(1).replace(',', '.')
         if '.' in num_str:
             parts = num_str.split('.')

@@ -1,7 +1,7 @@
 """
 Определяет границы предложений в потоке токенов.
 Все регулярные выражения предкомпилированы.
-Списки используют длинное тире для глубокой паузы в TTS.
+Списки используют длинное тире для глубовой паузы в TTS.
 """
 import regex as re
 from collections.abc import Iterable
@@ -42,7 +42,11 @@ SENTENCE_BOUNDARY_RE = re.compile(
 # Group 2: (\n[ \t]*(?=[-—–])) -> смена спикера (тире не съедается за счет lookahead)
 BREAK_RE = re.compile(r'(\n\s*\n)|(\n[ \t]*(?=[-—–]))')
 
-FALLBACK_SPLIT_RE = re.compile(r'(.*\s)', re.DOTALL)
+# Резервные разделители для длинных предложений без точек (ищут знак с пробелом как можно ближе к концу лимита)
+DASH_FALLBACK_RE = re.compile(r'.*[-—–][ \t]+', re.DOTALL)
+COLON_FALLBACK_RE = re.compile(r'.*[;:][ \t]+', re.DOTALL)
+COMMA_FALLBACK_RE = re.compile(r'.*[,][ \t]+', re.DOTALL)
+SPACE_FALLBACK_RE = re.compile(r'.*[ \t]+', re.DOTALL)
 
 # 2. ПРЕДКОМПИЛИРУЕМ ПАТТЕРНЫ ДЛЯ ОЧИСТКИ ТЕКСТА
 PARENS_RE = re.compile(r"\s*\((.*?)\)")
@@ -103,8 +107,19 @@ class SentenceBoundaryDetector:
 
             if not match_punc:
                 if len(self.buffer) > HARD_LIMIT:
-                    match = FALLBACK_SPLIT_RE.search(self.buffer[:HARD_LIMIT])
-                    split_pos = match.end() - 1 if match else HARD_LIMIT
+                    sub_buffer = self.buffer[:HARD_LIMIT]
+                    
+                    # Каскадный поиск лучшей логической паузы (регулярка возвращает индекс ровно после пробела)
+                    match = DASH_FALLBACK_RE.search(sub_buffer)
+                    if not match:
+                        match = COLON_FALLBACK_RE.search(sub_buffer)
+                    if not match:
+                        match = COMMA_FALLBACK_RE.search(sub_buffer)
+                    if not match:
+                        match = SPACE_FALLBACK_RE.search(sub_buffer)
+                    
+                    # split_pos теперь четко указывает на место СРАЗУ ПОСЛЕ знака препинания
+                    split_pos = match.end() if match else HARD_LIMIT
                     
                     if split_pos <= 0:
                         split_pos = HARD_LIMIT
@@ -116,7 +131,7 @@ class SentenceBoundaryDetector:
                     self.buffer = self.buffer[split_pos:].lstrip()
                     continue
 
-                break 
+                break
 
             sep_char = match_punc.group(1)
             sep_end_pos = match_punc.end(1)

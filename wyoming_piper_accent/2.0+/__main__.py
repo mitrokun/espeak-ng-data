@@ -89,6 +89,11 @@ async def main() -> None:
         help="Disable and do not load the automatic stress placement model",
     )
     parser.add_argument(
+        "--no-normalization",
+        action="store_true",
+        help="Disable English and Russian text normalization",
+    )
+    parser.add_argument(
         "--yo",
         action="store_true",
         help="Enable e to yo replacement using dictionary",

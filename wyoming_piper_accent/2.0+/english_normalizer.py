@@ -32,7 +32,7 @@ class EnglishNormalizer:
         "chatgpt": "чат джипити́", "gpt": "джипити", "copilot": "копа́йлот",
         "intel": "и́нтел", "android": "андроид", "linux": "линукс", "3d": "тридэ́",
         "amd": "айэмди́", "enter": "+энта", "setup": "сет+ап", "mode": "мод",
-        "pc": "пис+и",
+        "pc": "пис+и", "CINEWS": "си Ньюз",
 
 
         # Ё
