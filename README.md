@@ -65,4 +65,4 @@ cp ./espeak-ng-data/voice/ru_RU-mari-medium* ~/data/
 ./script/run --voice ru_RU-mari-medium_epoch6399 --uri 'tcp://0.0.0.0:10200' --data-dir ~/data --download-dir ~/data
 ```
 
-Больше моделей и пара чекпоинтов для быстрого дообучения [тут](https://huggingface.co/rraaww/ru_piper).
+Больше моделей и пара чекпоинтов для быстрого дообучения [тут](https://huggingface.co/rraaww/ru_piper). Послушать некоторые из моделей можно [тут](https://www.youtube.com/@%E7%8D%85%E5%AD%90-8k/shorts).
