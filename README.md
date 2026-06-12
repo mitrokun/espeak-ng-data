@@ -54,7 +54,7 @@ git clone https://github.com/mitrokun/espeak-ng-data.git
 
 # Файлы фонем и словарей. Существующие 4 голоса перестанут корректно работать
 # Проверьте используемую версию python, при необходимости измените путь
-cp -r ./espeak-ng-data/espeak-ng-data/* ./.venv/lib/python3.12/site-packages/piper/espeak-ng-data/
+cp -r ./espeak-ng-data/espeak-ng-data/* ./.venv/lib/python3.*/site-packages/piper/espeak-ng-data/
 # Модификация кода
 cp -r ./espeak-ng-data/wyoming_piper_accent/2.0+/* ./wyoming_piper/
 
