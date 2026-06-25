@@ -176,7 +176,6 @@ endphoneme
 phoneme z;
   vcd alv sib frc pzd pal 
   ipa zʲ 
-  voicingswitch s;
   lengthmod 6
   
   Vowelin  f1=2  f2=2700 400 600  f3=200 70 rate len=70
@@ -328,7 +327,6 @@ endphoneme
 phoneme n;
   vcd alv nas pzd pal
   ipa nʲ 
-  voicingswitch t;
   lengthmod 3
   length 100
   Vowelin f1=2  f2=2700 400 600  f3=200 80 rate len=80
@@ -487,7 +485,6 @@ endphoneme
 phoneme s;
   vls alv frc sib pzd pal
   ipa sʲ
-  voicingswitch z;
   lengthmod 3
   Vowelin  f1=1  f2=2700 400 600  f3=200 70 rate len=70
   Vowelout f1=1  f2=2700 400 600  f3=200 70 rate len=70
