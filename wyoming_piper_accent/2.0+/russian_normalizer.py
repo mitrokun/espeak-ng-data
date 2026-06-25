@@ -67,7 +67,6 @@ class RussianNormalizer:
         }
 
     def _load_yo_dictionary(self):
-        # ... (метод без изменений) ...
         try:
             dict_path = Path(__file__).parent / "yo.txt"
             if not dict_path.exists():
@@ -121,7 +120,7 @@ class RussianNormalizer:
             _LOGGER.error(f"Ошибка загрузки словаря ударений: {e}")
 
     def _apply_fix_match(self, match: re.Match) -> str:
-        # ... (метод без изменений) ...
+
         word = match.group(0)
         if not word: return word
         
@@ -179,8 +178,10 @@ class RussianNormalizer:
         return replacement
 
     def _replace_plus_sign(self, text: str) -> str:
-        text = re.sub(r'\s*\+\s*(?=\d)', ' плюс ', text)
-        text = re.sub(r'(?<=[a-zA-Zа-яА-ЯёЁ])\+(?![a-zA-Zа-яА-ЯёЁ])', ' плюс', text)
+
+        text = re.sub(r'\+(?![аеёиоуыэюяАЕЁИОУЫЭЮЯ])', ' плюс ', text)
+        text = re.sub(r' +', ' ', text)
+
         return text
 
     def _get_noun_form(self, n: int, forms: list) -> str:
@@ -191,7 +192,7 @@ class RussianNormalizer:
         return forms[2]
 
     def _float_to_text(self, num_str: str, for_percent: bool = False) -> str:
-        # ... (метод без изменений) ...
+
         if not NUM2WORDS_AVAILABLE:
             return num_str.replace('.', ' и ').replace(',', ' и ')
         clean_num = num_str.replace(',', '.')
@@ -227,7 +228,7 @@ class RussianNormalizer:
             return num_str
 
     def _replace_percentages(self, match: re.Match) -> str:
-        # ... (метод без изменений) ...
+
         num_str = match.group(1).replace(',', '.')
         if '.' in num_str:
             parts = num_str.split('.')
@@ -312,5 +313,8 @@ class RussianNormalizer:
         
         # 5. Оставшиеся дроби
         text = re.sub(r'\b\d+[.,]\d+\b', self._replace_floats, text)
+
+        # 6. Автоматическое ударение для одиночных А и О перед запятой в начале
+        text = re.sub(r'^([—–«"\s-]*)([АО])(?=,)', r'\1\2' + '\u0301', text)
         
         return text

@@ -124,7 +124,7 @@ def preprocess_text_for_stress(
                     final_unicode_parts.append(clean_word)
                 else:
                     processed_word = stress_pattern.sub(
-                        lambda m: m.group(1) + _STRESS_MARK, part
+                        lambda m: m.group(1) if m.group(1) in "ёЁ" else m.group(1) + _STRESS_MARK, part
                     )
                     final_unicode_parts.append(processed_word)
             else:
