@@ -266,7 +266,7 @@ class AudioCleaner:
         # --- НАСТРОЙКИ СЕРВЕРА TTS ---
         self.TTS_HOST = "127.0.0.1"
         self.TTS_PORT = 10200
-        self.TTS_DEFAULT_VOICE = "ru_RU-igm3744-medium"
+        self.TTS_DEFAULT_VOICE = "ru_RU-terra5604-medium"
         
         self.root.configure(bg=self.BG_COLOR)
         self.root.focus_force()
@@ -694,7 +694,8 @@ class AudioCleaner:
             on_save_callback=self.refresh_current_waveform,
             on_split_callback=self.handle_audio_split,
             on_merge_callback=self.merge_with_previous,
-            on_merge_next_callback=self.merge_with_next
+            on_merge_next_callback=self.merge_with_next,
+            on_merge_next_full_callback=self.merge_current_with_next_full
         )
 
     def refresh_current_waveform(self):
@@ -967,6 +968,108 @@ class AudioCleaner:
                 subprocess.call(('xdg-open', self.current_file_path))
         except Exception as e:
             print(f"Не удалось открыть файл: {e}")
+
+    def merge_current_with_next_full(self):
+        """Упрощенное объединение: дописывает весь звук и текст из следующего файла в текущий."""
+        if self.index >= len(self.files) - 1:
+            messagebox.showwarning("Внимание", "Нет следующего файла для объединения!")
+            return
+
+        # Закрываем редактор точно так же, как это успешно делает кнопка N (чтобы не было конфликтов доступа к файлу)
+        had_editor = (self.active_editor is not None)
+        if self.active_editor:
+            editor = self.active_editor
+            self.active_editor = None
+            editor.on_window_close()
+            
+        self.stop_audio()
+        self.stop_tts()
+        
+        file_curr = self.files[self.index]
+        file_next = self.files[self.index + 1]
+        
+        path_curr = os.path.join(self.folder_path, file_curr)
+        path_next = os.path.join(self.folder_path, file_next)
+        
+        # 1. Читаем звук из следующего файла ЦЕЛИКОМ (в отличие от кнопки N, где было ограничение по времени)
+        try:
+            with wave.open(path_next, 'rb') as wf_next:
+                frames_next = wf_next.readframes(wf_next.getnframes())
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось прочитать соседний файл: {e}")
+            return
+
+        # 2. Читаем текущий файл
+        try:
+            with wave.open(path_curr, 'rb') as wf_curr:
+                params_curr = wf_curr.getparams()
+                frames_curr = wf_curr.readframes(wf_curr.getnframes())
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось прочитать текущий файл: {e}")
+            return
+            
+        # 3. Склеиваем и записываем обратно в текущий файл
+        try:
+            with wave.open(path_curr, 'wb') as wf_out:
+                wf_out.setparams(params_curr)
+                wf_out.writeframes(frames_curr + frames_next)
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось сохранить объединенный файл: {e}")
+            return
+
+        # 4. Склеиваем тексты
+        stem_curr = os.path.splitext(file_curr)[0]
+        stem_next = os.path.splitext(file_next)[0]
+
+        text_curr = self.metadata.get(file_curr) or self.metadata.get(stem_curr) or ""
+        text_next = self.metadata.get(file_next) or self.metadata.get(stem_next) or ""
+        
+        # Превращаем первую букву следующей фразы в строчную (маленькую)
+        next_clean = text_next.strip()
+        if next_clean:
+            next_clean = next_clean[0].lower() + next_clean[1:]
+            
+        combined_text = (text_curr.strip() + " " + next_clean).strip()
+
+        # 5. Обновляем metadata.csv (только строку текущего файла)
+        metadata_path = os.path.join(self.folder_path, "metadata.csv")
+        if os.path.exists(metadata_path):
+            used_enc = 'utf-8'
+            lines = []
+            for enc in ['utf-8', 'cp1251']:
+                try:
+                    with open(metadata_path, 'r', encoding=enc) as f:
+                        lines = f.readlines()
+                    used_enc = enc
+                    break
+                except UnicodeDecodeError: continue
+
+            new_lines = []
+            for line in lines:
+                parts = line.split('|', 1)
+                if len(parts) > 0:
+                    row_id = parts[0].strip()
+                    if row_id == file_curr or row_id == stem_curr:
+                        ending = "\r\n" if line.endswith("\r\n") else "\n"
+                        line = f"{row_id}|{combined_text}{ending}"
+                new_lines.append(line)
+
+            with open(metadata_path, 'w', encoding=used_enc) as f:
+                f.writelines(new_lines)
+
+        # 6. Обновляем оперативную память
+        if stem_curr in self.metadata:
+            self.metadata[stem_curr] = combined_text
+        else:
+            self.metadata[file_curr] = combined_text
+
+        # 7. Перезагружаем UI
+        self.load_metadata()
+        self.load_and_play()
+        
+        # 8. Мгновенно возвращаем редактор на экран (так же, как в кнопках B/N)
+        if had_editor:
+            self.root.after(100, self.open_internal_editor)
 
     # --- ЛОГИКА ВОЛНОГРАММ ---
     def get_wav_pcm(self, filepath):

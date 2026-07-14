@@ -109,14 +109,14 @@ class FastAudioCutter:
         # takefocus=0 отключает захват стрелок кнопками, фокус всегда в окне
         btn_style = {"fg": "white", "relief": tk.FLAT, "padx": 15, "pady": 8, "font": ("Segoe UI", 10, "bold"), "activebackground": "#444444", "activeforeground": "white", "cursor": "hand2", "takefocus": 0}
 
-        tk.Button(self.btn_container, text="[M]rg", command=self.trigger_merge_next_full, bg="#311946", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="[I]ns", command=self.insert_silence, bg="#482f4c", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="D[e]l", command=self.delete_selection, bg="#560000", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="[S]ave", command=self.save_changes_only, bg="#3e3e3e", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="[X]prt", command=self.trigger_split, bg="#1c3c5c", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="[C]ut", command=self.auto_cut_silence, bg="#522a13", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="[G]asp", command=self.kill_current_gasp, bg="#114444", **btn_style).pack(side=tk.LEFT, padx=4)
-        tk.Button(self.btn_container, text=" ▶/⏹ ", command=self.toggle_playback, bg="#2c3e50", **btn_style).pack(side=tk.LEFT, padx=4)                  
+        tk.Button(self.btn_container, text=" ▶/⏹ ", command=self.toggle_playback, bg="#2c3e50", **btn_style).pack(side=tk.LEFT, padx=4)
+        tk.Button(self.btn_container, text="[M]rg", command=self.trigger_merge_next_full, bg="#311946", **btn_style).pack(side=tk.LEFT, padx=4)
         tk.Button(self.btn_container, text="Cancel", command=self.on_window_close, bg="#560000", **btn_style).pack(side=tk.LEFT, padx=4)
 
         self.info_text = "Space: Play | RMB: Zoom In/Out | ⬅/➡: ±10ms | X: Split | B: Prepend | N: Append | G: Gasp | C: AutoCut | I/V: Silence | Del: Delete"
