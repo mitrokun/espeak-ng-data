@@ -357,6 +357,7 @@ class AudioCleaner:
                                      bg=self.BG_COLOR, fg=self.FG_COLOR)
         self.lbl_filename.grid(row=0, column=1)
         self.lbl_filename.bind("<Button-1>", self.manual_reload)
+        self.lbl_filename.bind("<Double-Button-1>", self.rename_current_file)  # Двойной клик для переименования
         self.lbl_filename.bind("<Button-3>", self.open_in_external_app)
         self.lbl_filename.config(cursor="hand2")
 
@@ -379,14 +380,12 @@ class AudioCleaner:
         self.canvas_tts.pack(fill=tk.X)
 
         # --- БЛОК РАСШИФРОВКИ (ТЕКСТ С ВОЗМОЖНОСТЬЮ ВЫДЕЛЕНИЯ) ---
-        # Увеличим высоту до 4 строк (высота самого виджета), чтобы длинные фразы гарантированно влезали
         self.lbl_transcription = tk.Text(root, font=("Helvetica", self.FONT_SIZE), 
                                          bg=self.BG_COLOR, fg=self.FG_COLOR, 
                                          bd=0, highlightthickness=0, wrap=tk.WORD, height=4,
-                                         padx=30, pady=30, # Добавлены внутренние отступы
-                                         selectbackground="#333333",  # Мягкий серый фон выделения
+                                         padx=30, pady=30, 
+                                         selectbackground="#333333",  
                                          selectforeground="#26A269") 
-        # Заменяем fill=tk.BOTH на fill=tk.X
         self.lbl_transcription.pack(pady=5, fill=tk.X, expand=True)
         self.lbl_transcription.tag_configure("center", justify='center')
         
@@ -394,6 +393,9 @@ class AudioCleaner:
         self.fix_copy_paste(self.lbl_transcription)
         
         self.lbl_transcription.bind("<Double-Button-1>", self.open_editor)
+        # Привязка правого клика мыши для копирования слова (для Windows/Linux и macOS)
+        self.lbl_transcription.bind("<Button-3>", self.copy_word_on_right_click)
+        
         self.lbl_transcription.config(state=tk.DISABLED, cursor="xterm")
 
         # --- БЛОК ПОЛЗУНКА ---
@@ -472,9 +474,9 @@ class AudioCleaner:
         self.bottom_frame.columnconfigure(2, weight=1, uniform="edges")
 
         help_text = (
-            "повторить ↓  |  ↑ удалить\n"
-            "вернуться ←  |  → следующий\n"
-            "правый ctrl  |  ▶/⏹"
+            "repeat ↓  |  ↑ delete\n"
+            "back ←/a  |  d/→ next\n"
+            "r_ctrl/f     TTS ▶/■"
         )
         self.lbl_help = tk.Label(self.bottom_frame, text=help_text, 
                                  font=("Consolas", max(10, self.FONT_SIZE - 2)), 
@@ -513,6 +515,7 @@ class AudioCleaner:
         root.bind_all('<space>', self.toggle_pause)
         root.bind_all('<Right>', self.keep_and_next)
         root.bind_all('<Left>', self.prev_file)
+        root.bind_all('<F2>', self.rename_current_file)  # Хоткей переименования
 
         root.bind_all('<Key>', self.handle_letter_keys)
 
@@ -542,8 +545,6 @@ class AudioCleaner:
             (87, 25, 13, 'w'): self.open_internal_editor,
             (82, 27, 15, 'r'): self.open_editor,
             (70, 41, 3, 'f'): self.toggle_tts,
-            # (66, 56, 11, 'b'): self.merge_with_previous,
-            # (78, 57, 45, 'n'): self.merge_with_next
         }
 
         for keys, action in hotkeys.items():
@@ -686,7 +687,6 @@ class AudioCleaner:
             return
         
         self.stop_audio()
-        # Передаем новый параметр on_split_callback для разделения файлов
         self.active_editor = FastAudioCutter(
             self.root, 
             self.current_file_path, 
@@ -719,12 +719,21 @@ class AudioCleaner:
             messagebox.showwarning("Внимание", "Для этого файла нет расшифровки!")
             return
             
-        split_win = tk.Toplevel(self.active_editor.root)
+        split_win = tk.Toplevel(self.root)
         split_win.title("Разделение текста")
         apply_dark_title_bar(split_win)
         
-        split_win.geometry("600x250")
-        split_win.transient(self.active_editor.root)
+        # Расчет геометрии для открытия ровно по центру основного окна (self.root)
+        self.root.update_idletasks()
+        m_w, m_h = self.root.winfo_width(), self.root.winfo_height()
+        m_x, m_y = self.root.winfo_x(), self.root.winfo_y()
+        
+        width, height = 600, 260
+        x = m_x + (m_w // 2) - (width // 2)
+        y = m_y + (m_h // 2) - (height // 2)
+        split_win.geometry(f"{width}x{height}+{x}+{y}")
+        
+        split_win.transient(self.root)
         split_win.grab_set()
         split_win.configure(bg=self.BG_COLOR)
 
@@ -735,35 +744,212 @@ class AudioCleaner:
         txt = tk.Text(split_win, font=("Helvetica", self.FONT_SIZE), bg=self.PANEL_BG, fg=self.FG_COLOR, 
                       wrap=tk.WORD, height=4, insertbackground=self.FG_COLOR, bd=0)
         self.fix_copy_paste(txt)
-        txt.pack(padx=15, pady=10, fill=tk.BOTH, expand=True)
+        txt.pack(padx=15, pady=5, fill=tk.BOTH, expand=True)
         txt.insert("1.0", self.current_text)
         txt.focus_set()
 
-        def on_enter(e):
+        def do_confirm():
             idx = txt.index(tk.INSERT)
             text_a = txt.get("1.0", idx).strip()
             text_b = txt.get(idx, tk.END).strip()
             
             if not text_a or not text_b:
                 messagebox.showerror("Ошибка", "Одна из частей пустая! Поставьте курсор между словами.")
-                return "break"
+                return
                 
             split_win.destroy()
             self.perform_split(split_pos, current_samples, n_channels, sample_rate, text_a, text_b)
+
+        def on_enter(e):
+            do_confirm()
             return "break"
 
         txt.bind("<Return>", on_enter)
         split_win.bind("<Escape>", lambda e: split_win.destroy())
 
+        # Панель с кнопками внизу диалога
+        btn_frame = tk.Frame(split_win, bg=self.BG_COLOR)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=15, pady=(5, 15))
+
+        btn_style = {
+            "bg": self.PANEL_BG, 
+            "fg": self.FG_COLOR, 
+            "activebackground": self.FG_COLOR,
+            "activeforeground": self.BG_COLOR, 
+            "relief": tk.FLAT, 
+            "font": ("Helvetica", max(10, self.FONT_SIZE - 4)),
+            "bd": 0,
+            "pady": 6,
+            "cursor": "hand2",
+            "width": 8
+        }
+
+        # Контейнер для центрирования кнопок на панели
+        btn_container = tk.Frame(btn_frame, bg=self.BG_COLOR)
+        btn_container.pack(anchor=tk.CENTER)
+
+        btn_cancel = tk.Button(btn_container, text="❌", command=split_win.destroy, **btn_style)
+        btn_cancel.pack(side=tk.LEFT, padx=10)
+
+        btn_confirm = tk.Button(btn_container, text="✔️", command=do_confirm, **btn_style)
+        btn_confirm.pack(side=tk.LEFT, padx=10)
+
+    def rename_current_file(self, event=None):
+        """Интерфейс и логика переименования активного аудиофайла."""
+        if self.is_editing(event): 
+            return
+        if not self.files or self.index >= len(self.files): 
+            return
+
+        old_filename = self.files[self.index]
+        stem, ext = os.path.splitext(old_filename)
+
+        # Окно диалога
+        rename_win = tk.Toplevel(self.root)
+        rename_win.title("Переименование файла")
+        apply_dark_title_bar(rename_win)
+
+        # Центрирование относительно главного окна
+        self.root.update_idletasks()
+        m_w, m_h = self.root.winfo_width(), self.root.winfo_height()
+        m_x, m_y = self.root.winfo_x(), self.root.winfo_y()
+        width, height = 450, 160
+        x = m_x + (m_w // 2) - (width // 2)
+        y = m_y + (m_h // 2) - (height // 2)
+        rename_win.geometry(f"{width}x{height}+{x}+{y}")
+
+        rename_win.transient(self.root)
+        rename_win.grab_set()
+        rename_win.configure(bg=self.BG_COLOR)
+
+        lbl = tk.Label(rename_win, text=f"Введите новое имя (без расширения {ext}):", 
+                       bg=self.BG_COLOR, fg=self.FG_COLOR, font=("Helvetica", max(10, self.FONT_SIZE - 4)))
+        lbl.pack(pady=(15, 5))
+
+        entry_var = tk.StringVar(value=stem)
+        entry = tk.Entry(rename_win, textvariable=entry_var, font=("Helvetica", self.FONT_SIZE), 
+                         bg=self.PANEL_BG, fg=self.FG_COLOR, insertbackground=self.FG_COLOR, 
+                         bd=0, highlightthickness=0, justify="center")
+        self.fix_copy_paste(entry)
+        entry.pack(padx=20, pady=10, fill=tk.X)
+        entry.focus_set()
+        entry.select_range(0, tk.END)
+
+        def do_rename():
+            new_stem = entry_var.get().strip()
+            if not new_stem:
+                messagebox.showerror("Ошибка", "Имя файла не может быть пустым!")
+                return
+            
+            # Проверка на недопустимые символы ОС
+            if any(char in new_stem for char in r'\/:*?"<>|'):
+                messagebox.showerror("Ошибка", 'Имя не должно содержать спецсимволы: \\ / : * ? " < > |')
+                return
+
+            new_filename = new_stem + ext
+            if new_filename == old_filename:
+                rename_win.destroy()
+                return
+
+            old_path = os.path.join(self.folder_path, old_filename)
+            new_path = os.path.join(self.folder_path, new_filename)
+
+            if os.path.exists(new_path):
+                messagebox.showerror("Ошибка", f"Файл {new_filename} уже существует!")
+                return
+
+            # Освобождаем дескрипторы перед физическим переименованием
+            self.stop_audio()
+            self.stop_tts()
+            time.sleep(0.1)  # Даем системе время закрыть дескриптор файла
+
+            try:
+                os.rename(old_path, new_path)
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось переименовать файл: {e}")
+                return
+
+            # Синхронизация с metadata.csv
+            metadata_path = os.path.join(self.folder_path, "metadata.csv")
+            if os.path.exists(metadata_path):
+                used_enc = 'utf-8'
+                lines = []
+                for enc in ['utf-8', 'cp1251']:
+                    try:
+                        with open(metadata_path, 'r', encoding=enc) as f:
+                            lines = f.readlines()
+                        used_enc = enc
+                        break
+                    except UnicodeDecodeError:
+                        continue
+
+                new_lines = []
+                for line in lines:
+                    parts = line.split('|', 1)
+                    if len(parts) > 0:
+                        row_id = parts[0].strip()
+                        if row_id == old_filename:
+                            line = f"{new_filename}|{parts[1]}" if len(parts) > 1 else f"{new_filename}\n"
+                        elif row_id == stem:
+                            line = f"{new_stem}|{parts[1]}" if len(parts) > 1 else f"{new_stem}\n"
+                    new_lines.append(line)
+
+                try:
+                    with open(metadata_path, 'w', encoding=used_enc) as f:
+                        f.writelines(new_lines)
+                except Exception as e:
+                    messagebox.showerror("Предупреждение", f"Файл переименован, но не удалось обновить metadata.csv: {e}")
+
+            # Обновление внутренних кэшей данных
+            text = self.metadata.pop(old_filename, None) or self.metadata.pop(stem, None) or ""
+            self.metadata[new_filename] = text
+            self.metadata[new_stem] = text
+
+            self.files[self.index] = new_filename
+            self.current_file_path = new_path
+
+            rename_win.destroy()
+            self.load_metadata()
+            self.update_ui_texts()
+
+        def on_enter(e):
+            do_rename()
+            return "break"
+
+        entry.bind("<Return>", on_enter)
+        rename_win.bind("<Escape>", lambda e: rename_win.destroy())
+
+        # Кнопки диалога
+        btn_frame = tk.Frame(rename_win, bg=self.BG_COLOR)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=15, pady=(5, 15))
+
+        btn_style = {
+            "bg": self.PANEL_BG, 
+            "fg": self.FG_COLOR, 
+            "activebackground": self.FG_COLOR,
+            "activeforeground": self.BG_COLOR, 
+            "relief": tk.FLAT, 
+            "font": ("Helvetica", max(10, self.FONT_SIZE - 4)),
+            "bd": 0,
+            "pady": 6,
+            "cursor": "hand2",
+            "width": 8
+        }
+
+        btn_container = tk.Frame(btn_frame, bg=self.BG_COLOR)
+        btn_container.pack(anchor=tk.CENTER)
+
+        btn_cancel = tk.Button(btn_container, text="❌", command=rename_win.destroy, **btn_style)
+        btn_cancel.pack(side=tk.LEFT, padx=10)
+
+        btn_confirm = tk.Button(btn_container, text="✔️", command=do_rename, **btn_style)
+        btn_confirm.pack(side=tk.LEFT, padx=10)
+
     def borrow_audio_segment(self, direction="prev", duration_sec=0.5):
-        """Универсальный метод: заимствует отрезок звука у соседа и приклеивает к текущему файлу.
-        direction: "prev" - берет хвост предыдущего файла и ставит в начало текущего.
-                   "next" - берет голову следующего файла и ставит в конец текущего.
-        """
+        """Универсальный метод: заимствует отрезок звука у соседа и приклеивает к текущему файлу."""
         if self.index < 0 or len(self.files) == 0:
             return
 
-        # Проверка границ списка файлов
         if direction == "prev":
             if self.index <= 0:
                 self.lbl_filename.config(bg="#550000")
@@ -779,7 +965,6 @@ class AudioCleaner:
         else:
             return
 
-        # Закрываем редактор на время перезаписи, если он открыт
         had_editor = (self.active_editor is not None)
         if self.active_editor:
             editor = self.active_editor
@@ -795,7 +980,6 @@ class AudioCleaner:
         path_curr = os.path.join(self.folder_path, filename_curr)
         path_neighbor = os.path.join(self.folder_path, filename_neighbor)
         
-        # 1. Читаем заимствуемый отрезок из соседнего файла
         try:
             with wave.open(path_neighbor, 'rb') as wf_neigh:
                 n_frames = wf_neigh.getnframes()
@@ -806,19 +990,16 @@ class AudioCleaner:
                     frames_to_read = n_frames
                 
                 if direction == "prev":
-                    # Смещаемся к концу предыдущего файла и берем хвост
                     start_pos = n_frames - frames_to_read
                     wf_neigh.setpos(start_pos)
                     frames_borrowed = wf_neigh.readframes(frames_to_read)
                 else:
-                    # Начинаем с самого начала следующего файла и берем голову
                     wf_neigh.setpos(0)
                     frames_borrowed = wf_neigh.readframes(frames_to_read)
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось прочитать соседний файл: {e}")
             return
 
-        # 2. Читаем текущий файл целиком
         try:
             with wave.open(path_curr, 'rb') as wf_curr:
                 params_curr = wf_curr.getparams()
@@ -827,38 +1008,30 @@ class AudioCleaner:
             messagebox.showerror("Ошибка", f"Не удалось прочитать текущий файл: {e}")
             return
             
-        # 3. Объединяем и перезаписываем текущий файл
         try:
             with wave.open(path_curr, 'wb') as wf_out:
                 wf_out.setparams(params_curr)
                 if direction == "prev":
-                    # Предыдущий стык идет в начало текущего
                     wf_out.writeframes(frames_borrowed + frames_curr)
                 else:
-                    # Следующий стык идет в конец текущего
                     wf_out.writeframes(frames_curr + frames_borrowed)
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось сохранить объединенный файл: {e}")
             return
             
-        # 4. Обновляем локальное состояние и перегружаем данные (текст в CSV не меняем)
         self.load_metadata()
         self.load_and_play()
         
-        # Возвращаем редактор на экран, если он был открыт
         if had_editor:
             self.root.after(100, self.open_internal_editor)
 
     def merge_with_previous(self, event=None):
-        """Интерфейсный метод для хоткея B (добавление из предыдущего)"""
         self.borrow_audio_segment(direction="prev", duration_sec=0.5)
 
     def merge_with_next(self, event=None):
-        """Интерфейсный метод для хоткея N (добавление из следующего)"""
         self.borrow_audio_segment(direction="next", duration_sec=0.5)
 
     def perform_split(self, split_pos, current_samples, n_channels, sample_rate, text_a, text_b):
-        """Физически режет аудио на A и B, обновляет метаданные и удаляет оригинал"""
         frames_a = current_samples[:split_pos].tobytes()
         frames_b = current_samples[split_pos:].tobytes()
         
@@ -871,7 +1044,6 @@ class AudioCleaner:
         path_a = os.path.join(self.folder_path, file_a_name)
         path_b = os.path.join(self.folder_path, file_b_name)
         
-        # 1. Сохраняем два новых файла
         try:
             with wave.open(path_a, 'wb') as wf:
                 wf.setnchannels(n_channels); wf.setsampwidth(2); wf.setframerate(sample_rate)
@@ -884,7 +1056,6 @@ class AudioCleaner:
             messagebox.showerror("Ошибка", f"Не удалось сохранить фрагменты: {e}")
             return
             
-        # 2. Обновляем metadata.csv
         metadata_path = os.path.join(self.folder_path, "metadata.csv")
         if os.path.exists(metadata_path):
             used_enc = 'utf-8'
@@ -897,7 +1068,6 @@ class AudioCleaner:
                     break
                 except UnicodeDecodeError: continue
             
-            # Заранее определяем формат записи ID в файле (с расширением или без)
             format_has_ext = any(line.split('|', 1)[0].strip() == old_filename for line in lines if '|' in line)
             id_a = file_a_name if format_has_ext else stem + "a"
             id_b = file_b_name if format_has_ext else stem + "b"
@@ -908,19 +1078,17 @@ class AudioCleaner:
                 parts = line.split('|', 1)
                 if len(parts) > 0:
                     row_id = parts[0].strip()
-                    # Если нашли удаляемую запись, вставляем новые элементы прямо на её место
                     if row_id == old_filename or row_id == stem:
                         if not inserted:
                             new_lines.append(f"{id_a}|{text_a}\n")
                             new_lines.append(f"{id_b}|{text_b}\n")
                             inserted = True
-                        continue # Пропускаем добавление старой строки
+                        continue
                 
                 cleaned_line = line.rstrip('\r\n')
                 if cleaned_line:
                     new_lines.append(cleaned_line + "\n")
 
-            # На случай, если исходный файл почему-то отсутствовал в метаданных
             if not inserted:
                 new_lines.append(f"{id_a}|{text_a}\n")
                 new_lines.append(f"{id_b}|{text_b}\n")
@@ -933,24 +1101,20 @@ class AudioCleaner:
             self.metadata[id_a] = text_a
             self.metadata[id_b] = text_b
                 
-        # 3. Закрываем редактор
         if self.active_editor:
             editor = self.active_editor
             self.active_editor = None
             editor.on_window_close()
             
-        # 4. Удаляем original длинный файл
         try:
             os.remove(self.current_file_path)
         except Exception as e:
             print(f"Не удалось удалить оригинал: {e}")
             
-        # 5. Подменяем файлы в UI-списке
         self.files.insert(self.index + 1, file_b_name)
         self.files[self.index] = file_a_name
         self.slider.config(to=max(1, len(self.files)))
         
-        # 6. Перезагрузка
         self.load_metadata()
         self.load_and_play()
 
@@ -970,12 +1134,10 @@ class AudioCleaner:
             print(f"Не удалось открыть файл: {e}")
 
     def merge_current_with_next_full(self):
-        """Упрощенное объединение: дописывает весь звук и текст из следующего файла в текущий."""
         if self.index >= len(self.files) - 1:
             messagebox.showwarning("Внимание", "Нет следующего файла для объединения!")
             return
 
-        # Закрываем редактор точно так же, как это успешно делает кнопка N (чтобы не было конфликтов доступа к файлу)
         had_editor = (self.active_editor is not None)
         if self.active_editor:
             editor = self.active_editor
@@ -991,7 +1153,6 @@ class AudioCleaner:
         path_curr = os.path.join(self.folder_path, file_curr)
         path_next = os.path.join(self.folder_path, file_next)
         
-        # 1. Читаем звук из следующего файла ЦЕЛИКОМ (в отличие от кнопки N, где было ограничение по времени)
         try:
             with wave.open(path_next, 'rb') as wf_next:
                 frames_next = wf_next.readframes(wf_next.getnframes())
@@ -999,7 +1160,6 @@ class AudioCleaner:
             messagebox.showerror("Ошибка", f"Не удалось прочитать соседний файл: {e}")
             return
 
-        # 2. Читаем текущий файл
         try:
             with wave.open(path_curr, 'rb') as wf_curr:
                 params_curr = wf_curr.getparams()
@@ -1008,7 +1168,6 @@ class AudioCleaner:
             messagebox.showerror("Ошибка", f"Не удалось прочитать текущий файл: {e}")
             return
             
-        # 3. Склеиваем и записываем обратно в текущий файл
         try:
             with wave.open(path_curr, 'wb') as wf_out:
                 wf_out.setparams(params_curr)
@@ -1017,21 +1176,18 @@ class AudioCleaner:
             messagebox.showerror("Ошибка", f"Не удалось сохранить объединенный файл: {e}")
             return
 
-        # 4. Склеиваем тексты
         stem_curr = os.path.splitext(file_curr)[0]
         stem_next = os.path.splitext(file_next)[0]
 
         text_curr = self.metadata.get(file_curr) or self.metadata.get(stem_curr) or ""
         text_next = self.metadata.get(file_next) or self.metadata.get(stem_next) or ""
         
-        # Превращаем первую букву следующей фразы в строчную (маленькую)
         next_clean = text_next.strip()
         if next_clean:
             next_clean = next_clean[0].lower() + next_clean[1:]
             
         combined_text = (text_curr.strip() + " " + next_clean).strip()
 
-        # 5. Обновляем metadata.csv (только строку текущего файла)
         metadata_path = os.path.join(self.folder_path, "metadata.csv")
         if os.path.exists(metadata_path):
             used_enc = 'utf-8'
@@ -1057,17 +1213,14 @@ class AudioCleaner:
             with open(metadata_path, 'w', encoding=used_enc) as f:
                 f.writelines(new_lines)
 
-        # 6. Обновляем оперативную память
         if stem_curr in self.metadata:
             self.metadata[stem_curr] = combined_text
         else:
             self.metadata[file_curr] = combined_text
 
-        # 7. Перезагружаем UI
         self.load_metadata()
         self.load_and_play()
         
-        # 8. Мгновенно возвращаем редактор на экран (так же, как в кнопках B/N)
         if had_editor:
             self.root.after(100, self.open_internal_editor)
 
@@ -1138,18 +1291,41 @@ class AudioCleaner:
     def is_editing(self, event):
         if event and hasattr(event, 'widget'):
             if isinstance(event.widget, (tk.Entry, tk.Text)):
-                # Если виджет отключен (режим только для чтения), то горячие клавиши должны работать
                 if str(event.widget.cget("state")) == tk.DISABLED:
                     return False
                 return True
         return False
 
     def set_transcription_text(self, text_val):
-        """Вспомогательная функция для обновления текста в Read-Only виджете"""
         self.lbl_transcription.config(state=tk.NORMAL)
         self.lbl_transcription.delete("1.0", tk.END)
         self.lbl_transcription.insert("1.0", text_val, "center")
         self.lbl_transcription.config(state=tk.DISABLED)
+
+    def copy_word_on_right_click(self, event):
+        """Копирует слово под курсором мыши в буфер обмена при правом клике."""
+        if self.is_editing(event): 
+            return
+        
+        try:
+            # Получаем индекс символа под курсором
+            idx = self.lbl_transcription.index(f"@{event.x},{event.y}")
+            
+            # Находим границы слова
+            start = self.lbl_transcription.index(f"{idx} wordstart")
+            end = self.lbl_transcription.index(f"{idx} wordend")
+            
+            # Извлекаем слово и очищаем его от кавычек и знаков препинания
+            word = self.lbl_transcription.get(start, end).strip()
+            word = word.strip(' "‟\',.!?;:()[]{}«»“”#*_+-=')
+            
+            if word:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(word)
+                self.root.update()  # Обновляем буфер обмена в системе
+        except Exception as e:
+            print(f"Ошибка при копировании слова: {e}")
+        return "break"
 
     def open_editor(self, event=None):
         if hasattr(self, 'editor') and self.editor.winfo_exists():
@@ -1158,14 +1334,11 @@ class AudioCleaner:
 
         if not self.current_text and not self.current_file_path: return
 
-        # Определяем индекс клика с учетом декоративной кавычки '"' в начале строки
         click_index = "1.0"
         if event and event.widget == self.lbl_transcription:
             try:
-                # Получаем точный индекс символа под координатами клика мыши
                 raw_index = self.lbl_transcription.index(f"@{event.x},{event.y}")
                 line, char = raw_index.split('.')
-                # Смещаем индекс на 1 символ назад, чтобы компенсировать открывающую кавычку
                 char_idx = max(0, int(char) - 1)
                 click_index = f"{line}.{char_idx}"
             except Exception:
@@ -1205,10 +1378,8 @@ class AudioCleaner:
         txt.pack(padx=15, pady=10, fill=tk.BOTH, expand=True)
         txt.insert("1.0", self.current_text)
         
-        # Устанавливаем текстовый курсор ровно в ту позицию, куда дважды кликнули на главном экране
         txt.mark_set(tk.INSERT, click_index)
         txt.see(tk.INSERT)
-        
         txt.focus_set()
 
         btn_frame = tk.Frame(self.editor, bg=self.BG_COLOR)
@@ -1529,6 +1700,7 @@ class AudioCleaner:
         self.root.unbind_all('<space>')
         self.root.unbind_all('<Right>')
         self.root.unbind_all('<Left>')
+        self.root.unbind_all('<F2>')
         self.root.unbind_all('<Key>')
         self.root.unbind_all('<Control_R>')
         self.root.unbind_all('<0>')

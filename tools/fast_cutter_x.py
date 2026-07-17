@@ -92,6 +92,10 @@ class FastAudioCutter:
         self.is_playing = False
         self.history = [] 
 
+        # Защита от ложного выделения
+        self.mousedown_time = 0.0
+        self.is_shift_click = False
+
         # Состояния зума
         self.zoom_start = 0
         self.zoom_end = None
@@ -153,18 +157,22 @@ class FastAudioCutter:
             self.toggle_playback()
             return "break"
 
-        # 2. Буквенные шорткаты
+        # 2. Буквенные шорткаты с исправленными кодами клавиш (исключение конфликтов на Windows/Linux/macOS)
         is_z = kc in (90, 52, 6)  or ks == 'z'      
         is_s = kc in (83, 39, 1)  or ks == 's'      
         is_w = kc in (87, 25, 13) or ks == 'w'      
-        is_q = kc in (81, 24, 16) or ks == 'q'      
+        is_q = kc in (81, 24, 12) or ks == 'q'        # Исправлено: 16 изменено на 12 (устранен конфликт с Shift_L на Win)
         is_e = kc in (69, 26, 14) or ks == 'e'      
         is_c = kc in (67, 54, 8)  or ks == 'c'      
-        is_i = kc in (73, 86, 34, 46) or ks in ('i', 'v') 
+        is_i = kc in (73, 86, 31, 55, 34, 9) or ks in ('i', 'v') # Исправлено: удален код 46 (устранен конфликт с Delete на Win)
         is_g = kc in (71, 34, 5)  or ks == 'g'      
-        is_x = kc in (88, 27, 7)  or ks == 'x'
+        is_x = kc in (88, 53, 7)  or ks == 'x'        # Исправлено: 27 изменено на 53 (устранен конфликт с Escape на Win)
         is_b = kc in (66, 56, 11) or ks in ('b', 'cyrillic_i', 'и')
         is_n = kc in (78, 57, 45) or ks in ('n', 'cyrillic_te', 'т')
+        
+        # Скрытые функции: O (Щ) - удалить левее, P (З) - удалить правее
+        is_o = kc in (79, 47, 32) or ks in ('o', 'cyrillic_shcha', 'щ')
+        is_p = kc in (80, 48, 33) or ks in ('p', 'cyrillic_ze', 'з')
 
         if is_z: self.undo()
         elif is_s: self.save_changes_only()
@@ -174,6 +182,8 @@ class FastAudioCutter:
         elif is_c: self.auto_cut_silence()
         elif is_i: self.insert_silence()
         elif is_x: self.trigger_split()
+        elif is_o: self.delete_left()
+        elif is_p: self.delete_right()
         elif is_b:
             if self.on_merge_callback:
                 self.on_merge_callback()
@@ -247,6 +257,12 @@ class FastAudioCutter:
             self.lbl_info.config(text=f"Error: {e}", fg="#e74c3c")
 
     def draw_wave(self):
+        try:
+            if not self.canvas.winfo_exists():
+                return
+        except (tk.TclError, AttributeError):
+            return
+
         self.canvas.delete("all")
         w, h = self.canvas.winfo_width(), self.canvas.winfo_height()
         if w <= 1 or not self.samples: return
@@ -369,12 +385,25 @@ class FastAudioCutter:
 
     def update_ui_loop(self):
         if not self.is_playing: return
+        
+        # Защита от обращения к уничтоженному виджету при закрытии окна
+        try:
+            if not self.canvas.winfo_exists():
+                return
+        except (tk.TclError, AttributeError):
+            return
+
         w = self.canvas.winfo_width()
         if len(self.samples) > 0:
             zs, ze = self.get_view_bounds()
             view_samples = ze - zs
             cx = ((self.cursor_pos - zs) / view_samples) * w
-            self.canvas.coords("cursor", cx, 0, cx, self.canvas.winfo_height())
+            
+            try:
+                self.canvas.coords("cursor", cx, 0, cx, self.canvas.winfo_height())
+            except tk.TclError:
+                return  # Если окно закрылось в момент обновления координат
+
         self.root.after(16, self.update_ui_loop)
 
     def _push_history(self):
@@ -409,6 +438,33 @@ class FastAudioCutter:
         self.reset_zoom()
         self.draw_wave()
         self.lbl_info.config(text=f"Deleted selection | Length: {self.get_duration_str()}", fg="#FFCC00")
+
+    def delete_left(self):
+        """Удаляет все аудио левее текущей позиции курсора (хоткей O/Щ)"""
+        if not self.samples or self.cursor_pos <= 0: return
+        self.stop_audio(return_to_origin=False)
+        self._push_history()
+        
+        self.samples = self.samples[self.cursor_pos:]
+        self.cursor_pos = 0
+        self.sel_start = self.sel_end = None
+        
+        self.reset_zoom()
+        self.draw_wave()
+        self.lbl_info.config(text=f"Deleted left | Length: {self.get_duration_str()}", fg="#FFCC00")
+
+    def delete_right(self):
+        """Удаляет все аудио правее текущей позиции курсора (хоткей P/З)"""
+        if not self.samples or self.cursor_pos >= len(self.samples): return
+        self.stop_audio(return_to_origin=False)
+        self._push_history()
+        
+        self.samples = self.samples[:self.cursor_pos]
+        self.sel_start = self.sel_end = None
+        
+        self.reset_zoom()
+        self.draw_wave()
+        self.lbl_info.config(text=f"Deleted right | Length: {self.get_duration_str()}", fg="#FFCC00")
 
     def kill_current_gasp(self, event=None):
         if not self.samples: return
@@ -510,6 +566,9 @@ class FastAudioCutter:
         if not self.samples: return
         self.stop_audio(return_to_origin=False)
         
+        self.is_shift_click = False        # Обычный клик
+        self.mousedown_time = time.time()  # Фиксируем время нажатия кнопки
+        
         zs, ze = self.get_view_bounds()
         view_samples = ze - zs
         click_idx = zs + int((event.x / self.canvas.winfo_width()) * view_samples)
@@ -532,6 +591,7 @@ class FastAudioCutter:
         # Начало выделения — старый курсор, конец — текущий клик
         self.sel_start = self.cursor_pos
         self.sel_end = click_idx
+        self.is_shift_click = True  # Помечаем выделение как Shift-клик
         self.draw_wave()
 
     def on_mousemove(self, event):
@@ -545,6 +605,27 @@ class FastAudioCutter:
         self.draw_wave()
 
     def on_mouseup(self, event):
-        if self.sel_end is not None and abs(self.sel_end - self.sel_start) < (self.SAMPLE_RATE * 0.005):
+        # Если выделение сделано через Shift-клик, игнорируем таймер и сохраняем его
+        if self.is_shift_click:
+            self.is_shift_click = False
+            self.draw_wave()
+            return
+
+        # Рассчитываем время удержания кнопки мыши
+        click_duration = time.time() - self.mousedown_time
+        
+        # Проверяем критерии ложного (случайного) выделения
+        is_too_small = (self.sel_end is not None and 
+                        abs(self.sel_end - self.sel_start) < (self.SAMPLE_RATE * 0.002))
+        is_too_fast = click_duration < 0.150  # Выделено быстрее, чем за 150 мс
+
+        if is_too_fast or is_too_small:
+            # Сбрасываем выделение, но сохраняем cursor_pos на месте первого нажатия
             self.sel_start = self.sel_end = None
+            
         self.draw_wave()
+
+if __name__ == "__main__":
+    # Локальный запуск для отладки
+    app = FastAudioCutter()
+    app.root.mainloop()
