@@ -2,6 +2,8 @@ import re
 import logging
 from pathlib import Path
 
+from .sentence_boundary import ABBR_FOR_INTONATION
+
 _LOGGER = logging.getLogger(__name__)
 
 try:
@@ -17,6 +19,40 @@ class RussianNormalizer:
     _SHARED_STRESS_MAP = None
     _SHARED_CAPITALIZED_STRESS_MAP = None
 
+    # Карта для озвучивания одиночных инициалов
+    _INITIALS_MAP = {
+        'А': 'А\u0301',
+        'Б': 'Бэ',
+        'В': 'Вэ',
+        'Г': 'Гэ',
+        'Д': 'Дэ',
+        'Е': 'Е\u0301',
+        'Ё': 'Ё',
+        'Ж': 'Же',
+        'З': 'Зэ',
+        'И': 'И\u0301',
+        'Й': 'Йот',
+        'К': 'Ка',
+        'Л': 'Эль',
+        'М': 'Эм',
+        'Н': 'Эн',
+        'О': 'О\u0301',
+        'П': 'Пэ',
+        'Р': 'Эр',
+        'С': 'Эс',
+        'Т': 'Тэ',
+        'У': 'У\u0301',
+        'Ф': 'Эф',
+        'Х': 'Ха',
+        'Ц': 'Цэ',
+        'Ч': 'Че',
+        'Ш': 'Шэ',
+        'Щ': 'Ща',
+        'Э': 'Э\u0301',
+        'Ю': 'Ю\u0301',
+        'Я': 'Я\u0301',
+    }
+
     def __init__(self, use_yo: bool = False):
         self.use_yo = use_yo
         self.yo_map = {}
@@ -28,13 +64,13 @@ class RussianNormalizer:
             'черно': 'чёрно',
             'темно': 'тёмно',
             'пестро': 'пёстро',
+            'светло': 'све́тло',
         }
         
         # Регулярное выражение для поиска годов
-        # Захватывает опциональный предлог, число (до 4 цифр), опциональное окончание (-й, -е, -м) и само слово год
         self.year_pattern = re.compile(
             r'\b(?P<num>\d{1,4})'              # Число (год)
-            r'(?:-?[а-яё]{1,3})?'              # Любой из стандартных суффиксов (игнорируем)
+            r'(?:-?[а-яё]{1,3})?'              # Любой из стандартных суффиксов
             r'\s+'                             # Пробел
             r'(?P<god>год[а-яё]{0,3})\b',      # Форма слова "год"
             re.IGNORECASE
@@ -60,6 +96,11 @@ class RussianNormalizer:
             self.stress_map = RussianNormalizer._SHARED_STRESS_MAP
             self.capitalized_stress_map = RussianNormalizer._SHARED_CAPITALIZED_STRESS_MAP
 
+        self.abbr_clean_pattern = re.compile(
+            rf'\b({ABBR_FOR_INTONATION})\.(?=\s)', 
+            re.IGNORECASE
+        )
+
         self.adverb_fixes = {
             r'\bпо-моему\b': 'помоему',
             r'\bпо-твоему\b': 'потвоему',
@@ -83,7 +124,7 @@ class RussianNormalizer:
         except Exception as e:
             _LOGGER.error(f"Ошибка загрузки словаря ё: {e}")
 
-    def    _load_stress_dictionary(self):
+    def _load_stress_dictionary(self):
         try:
             dict_path = Path(__file__).parent / "user.txt"
             if not dict_path.exists():
@@ -95,18 +136,14 @@ class RussianNormalizer:
                     if not line:
                         continue
                     
-                    # ПРОВЕРЯЕМ: есть ли ударение (+) ИЛИ есть ли буква 'ё'
                     if '+' in line or 'ё' in line.lower():
                         word_clean = line.replace('+', '')
                         is_capitalized = word_clean[0].isupper()
                         low_val = line.lower()
                         
-                        # Генерируем два ключа: оригинальный и с заменой 'ё' на 'е'
                         low_key_yo = word_clean.lower()
                         low_key_e = low_key_yo.replace('ё', 'е')
                         
-                        # Множество ключей, чтобы не делать лишней работы, если 'ё' нет 
-                        # (например, для слова Ма+ша ключ будет один)
                         keys = {low_key_yo, low_key_e}
                         
                         for key in keys:
@@ -120,7 +157,6 @@ class RussianNormalizer:
             _LOGGER.error(f"Ошибка загрузки словаря ударений: {e}")
 
     def _apply_fix_match(self, match: re.Match) -> str:
-
         word = match.group(0)
         if not word: return word
         
@@ -178,10 +214,8 @@ class RussianNormalizer:
         return replacement
 
     def _replace_plus_sign(self, text: str) -> str:
-
         text = re.sub(r'\+(?![аеёиоуыэюяАЕЁИОУЫЭЮЯ])', ' плюс ', text)
         text = re.sub(r' +', ' ', text)
-
         return text
 
     def _get_noun_form(self, n: int, forms: list) -> str:
@@ -192,7 +226,6 @@ class RussianNormalizer:
         return forms[2]
 
     def _float_to_text(self, num_str: str, for_percent: bool = False) -> str:
-
         if not NUM2WORDS_AVAILABLE:
             return num_str.replace('.', ' и ').replace(',', ' и ')
         clean_num = num_str.replace(',', '.')
@@ -228,7 +261,6 @@ class RussianNormalizer:
             return num_str
 
     def _replace_percentages(self, match: re.Match) -> str:
-
         num_str = match.group(1).replace(',', '.')
         if '.' in num_str:
             parts = num_str.split('.')
@@ -261,15 +293,15 @@ class RussianNormalizer:
             return match.group(0)
 
         suffix_map = {
-            'год':    {'ый': 'ый',  'ой': 'ой',  'ий': 'ий'},   # 1961 год
-            'года':   {'ый': 'ого', 'ой': 'ого', 'ий': 'ьего'}, # 1961 года
-            'году':   {'ый': 'ом',  'ой': 'ом',  'ий': 'ьем'},  # 1961 году
-            'годом':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},  # 1961 годом
-            'годы':   {'ый': 'ые',  'ой': 'ые',  'ий': 'ьи'},   # 1960 годы
-            'годов':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},  # 1960 годов
-            'годам':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},  # 1960 годам
-            'годами': {'ый': 'ыми', 'ой': 'ыми', 'ий': 'ьими'}, # 1960 годами
-            'годах':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},  # 1960 годах
+            'год':    {'ый': 'ый',  'ой': 'ой',  'ий': 'ий'},
+            'года':   {'ый': 'ого', 'ой': 'ого', 'ий': 'ьего'},
+            'году':   {'ый': 'ом',  'ой': 'ом',  'ий': 'ьем'},
+            'годом':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},
+            'годы':   {'ый': 'ые',  'ой': 'ые',  'ий': 'ьи'},
+            'годов':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},
+            'годам':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},
+            'годами': {'ый': 'ыми', 'ой': 'ыми', 'ий': 'ьими'},
+            'годах':  {'ый': 'ых',  'ой': 'ых',  'ий': 'ьих'},
         }
 
         target_rules = suffix_map.get(god_word, suffix_map['год'])
@@ -277,7 +309,6 @@ class RussianNormalizer:
         words = ordinal_text.split()
         last_word = words[-1]
 
-        # Заменяем окончание только последнего слова
         for base_end, new_end in target_rules.items():
             if last_word.endswith(base_end):
                 last_word = last_word[:-len(base_end)] + new_end
@@ -286,13 +317,46 @@ class RussianNormalizer:
         words[-1] = last_word
         normalized_num = " ".join(words)
 
-        # Сохраняем регистр первого слова, если он был
         if match.group(0)[0].isupper():
             normalized_num = normalized_num[0].upper() + normalized_num[1:]
 
         return f"{normalized_num} {god_word_raw}"
 
+    def _replace_initials(self, text: str) -> str:
+        # Находим одиночную заглавную русскую букву с точкой и возможными пробелами после неё
+        pattern = re.compile(r'\b([А-ЯЁ])\.(\s*)')
+        
+        def replace_callback(m: re.Match) -> str:
+            letter = m.group(1)
+            spaces = m.group(2)
+            
+            # Получаем фонетический вариант буквы из словаря
+            replacement = self._INITIALS_MAP.get(letter, letter)
+            
+            # Анализируем контекст после найденного совпадения в исходной строке
+            full_str = m.string
+            end_idx = m.end()
+            remaining = full_str[end_idx:].strip()
+            
+            # 1. Если следом идет еще один инициал (например, "С." после "А." в "А.С.")
+            # принудительно ставим один пробел для разделения при произношении
+            if re.match(r'^[А-ЯЁ]\.', remaining):
+                return replacement + " "
+                
+            # 2. Если дальше ничего нет, либо только знаки препинания конца предложения,
+            # возвращаем слово с точкой на конце, чтобы сохранить структуру предложения для TTS
+            if not remaining or re.match(r'^[)\s\]}»"”’\-—–.!?;:]+$', remaining):
+                return replacement + "." + spaces
+                
+            # 3. В остальных случаях возвращаем замену с сохранением исходных пробелов
+            return replacement + spaces
+
+        return pattern.sub(replace_callback, text)
+
     def normalize(self, text: str) -> str:
+
+        text = self.abbr_clean_pattern.sub(r'\1', text)
+
         # 0. Наречия
         for pattern, replacement in self.adverb_fixes.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
@@ -304,11 +368,13 @@ class RussianNormalizer:
         if self.stress_map or (self.use_yo and self.yo_map):
             text = re.sub(r'[а-яА-ЯёЁ-]+', self._apply_fix_match, text)
 
+        # 2.5. Обработка инициалов (например: В. Ц. -> Вэ Цэ)
+        text = self._replace_initials(text)
+
         # 3. Проценты
         text = re.sub(r'(\d+(?:[.,]\d+)?)\s*%', self._replace_percentages, text)
         
         # 4. Года (например: в 1961 году, 1930 годами)
-        # Должно идти до парсинга оставшихся дробей и обычных чисел, чтобы перехватить конструкции дат
         text = self.year_pattern.sub(self._replace_years, text)
         
         # 5. Оставшиеся дроби

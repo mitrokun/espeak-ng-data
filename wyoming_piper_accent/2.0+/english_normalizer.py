@@ -16,6 +16,9 @@ class EnglishNormalizer:
     Инкапсулирует логику для преобразования английских слов
     в русское фонетическое представление.
     """
+    # Список сокращений, у которых удаляем точку
+    ABBREVIATIONS_NO_DOT = {"mr", "mrs", "ms", "dr", "prof", "st", "jr", "inc"}
+
     ENGLISH_EXCEPTIONS = {
         # Бренды и имена
         "google": "гугл", "apple": "эпл", "microsoft": "майкрософт", "xiaomi": "сяом+и",
@@ -27,13 +30,15 @@ class EnglishNormalizer:
         "python": "пайтон", "AI": "эй+ай", "api": "эйпиай", "glados": "гл+адос",
         "IT": "+ай т+и", "wi-fi": "вай фай", "rtx": "эрте+икс", "nasa": "н+аса",
         "photoshop": "фотош+оп", "SOS": "сос", "pdf": "пэдэ+эф", "raw": "р+оу",
+        "docker": "д+окер", "runtime ": "рант+айм", "legacy": "л+егаси", "BDSM": "бэд+э эс+эм",
 
-        "scp": "эссипи́", "cuda": "ку́да", "ibm": "эйбиэ́м", "usb": "юэсби́",
+        "scp": "эссип+и", "cuda": "ку́да", "ibm": "эйбиэ́м", "usb": "юэсби́",
         "chatgpt": "чат джипити́", "gpt": "джипити", "copilot": "копа́йлот",
-        "intel": "и́нтел", "android": "андроид", "linux": "линукс", "3d": "трид+э́",
+        "intel": "и́нтэл", "android": "андроид", "linux": "линукс", "3d": "трид+э",
         "amd": "айэмди́", "enter": "+энта", "setup": "сет+ап", "mode": "мод",
         "pc": "пис+и", "CINEWS": "си Ньюз", "PR": "пи+ар", "HR": "эйч+ар",
-
+        "USSA": "юэсэс+эй", "omnilink": "омнил+инк", "data": "д+ата", "classiﬁed": "классиф+айд",
+        "LLM": "элэл+эм", "RCP": "эрсип+и", "btw": "байзэв+эй", "roblox": "р+облокс",
 
         # Ё
         "work": "ворк", "world": "ворлд", "bird": "бёрд",
@@ -46,6 +51,8 @@ class EnglishNormalizer:
         "knowledge": "ноуледж", "new": "нью", "just": "джаст", "error": "+эрор",
         "video": "видео", "ru": "ру", "com": "ком", "done": "дон", "media": "медиа",
         "hot": "хот", "https": "аштитипиэс", "http": "аштитипи", "upper": "аппер",
+        "qualia": "кв+алиа", "authentic": "аут+энтик", "aesthetic": "эст+этик",
+        "stunning": "ст+аннинг", "nice": "найс", "job": "джоб",
     }
 
     IPA_TO_RUSSIAN_MAP = {
@@ -78,34 +85,47 @@ class EnglishNormalizer:
         return result
 
     def _transliterate_word(self, match: Match[str]) -> str:
-        word_original = match.group(0)
+        raw_match = match.group(0)
+
+        # 1. Отделяем точку, если она есть
+        has_dot = raw_match.endswith('.')
+        word_original = raw_match[:-1] if has_dot else raw_match
 
         normalized_word = word_original.replace("’", "'")
-
-        # Далее используем только `normalized_word`
-        if normalized_word in self.ENGLISH_EXCEPTIONS:
-            return self.ENGLISH_EXCEPTIONS[normalized_word]
-
         word_lower = normalized_word.lower()
-        if word_lower in self.ENGLISH_EXCEPTIONS:
-            return self.ENGLISH_EXCEPTIONS[word_lower]
 
-        try:
-            # Передаём в библиотеку уже нормализованное слово
-            ipa_transcription = ipa.convert(word_lower)
-            ipa_transcription = re.sub(r'[/]', '', ipa_transcription).strip()
-            if '*' in ipa_transcription:
-                raise ValueError("IPA conversion failed.")
+        # 2. Получаем транслитерацию (оригинальная логика)
+        if normalized_word in self.ENGLISH_EXCEPTIONS:
+            translated = self.ENGLISH_EXCEPTIONS[normalized_word]
+        elif word_lower in self.ENGLISH_EXCEPTIONS:
+            translated = self.ENGLISH_EXCEPTIONS[word_lower]
+        else:
+            try:
+                ipa_transcription = ipa.convert(word_lower)
+                ipa_transcription = re.sub(r'[/]', '', ipa_transcription).strip()
+                if '*' in ipa_transcription:
+                    raise ValueError("IPA conversion failed.")
 
-            russian_phonetics = self._convert_ipa_to_russian(ipa_transcription)
-            russian_phonetics = re.sub(r'йй', 'й', russian_phonetics)
-            russian_phonetics = re.sub(r'([чшщждж])ь', r'\1', russian_phonetics)
-            _LOGGER.debug(f"Phonetic replacement: '{word_lower}' -> '{ipa_transcription}' -> '{russian_phonetics}'")
-            return russian_phonetics
-        except Exception:
-            _LOGGER.debug(f"Could not get IPA for '{word_lower}'. Falling back to original word for espeak.")
-            return word_original
+                russian_phonetics = self._convert_ipa_to_russian(ipa_transcription)
+                russian_phonetics = re.sub(r'йй', 'й', russian_phonetics)
+                russian_phonetics = re.sub(r'([чшщждж])ь', r'\1', russian_phonetics)
+                _LOGGER.debug(f"Phonetic replacement: '{word_lower}' -> '{ipa_transcription}' -> '{russian_phonetics}'")
+                translated = russian_phonetics
+            except Exception:
+                _LOGGER.debug(f"Could not get IPA for '{word_lower}'. Falling back to original word for espeak.")
+                translated = word_original
+
+        # 3. Возвращаем точку на место, ЕСЛИ это не сокращение
+        if has_dot:
+            if word_lower in self.ABBREVIATIONS_NO_DOT:
+                return translated
+            return translated + "."
+
+        return translated
 
     def normalize(self, text: str) -> str:
         """Находит в тексте английские слова, включая сокращения, и заменяет их на русское произношение."""
-        return re.sub(r"\b[a-zA-Z]+(?:[-'’][a-zA-Z]+)*\b", self._transliterate_word, text)
+
+        # Добавлено \.? в конце регулярки для захвата точки
+        pattern = r"\b(?=[0-9]*[a-zA-Z])[a-zA-Z0-9]+(?:[-'’][a-zA-Z0-9]+)*\b\.?"
+        return re.sub(pattern, self._transliterate_word, text)

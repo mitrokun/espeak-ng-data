@@ -239,7 +239,7 @@ class PiperEventHandler(AsyncEventHandler):
         log_steps = []
 
         if is_russian:
-            if self.eng_normalizer:
+            if self.eng_normalizer and re.search(r'[a-zA-Z]', temp_text):
                 transformed = self.eng_normalizer.normalize(temp_text)
                 if transformed != temp_text:
                     temp_text = transformed
@@ -471,7 +471,7 @@ class PiperEventHandler(AsyncEventHandler):
 
             if not self.audio_started:
                 try:
-                    for _ in voice.synthesize("И раз, и два", syn_config):
+                    for _ in voice.synthesize("о́о́о́о́о́о́м", syn_config):
                         pass
                     _LOGGER.debug(f"[{_ts()}] [WARM-UP]")
                 except Exception:
