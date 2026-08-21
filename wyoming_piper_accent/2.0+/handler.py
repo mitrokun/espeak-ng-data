@@ -28,7 +28,7 @@ from wyoming.tts import (
 from .download import VoiceNotFoundError, ensure_voice_exists, find_voice
 from .homographs import CORRECTION_WORDS
 from .sentence_boundary import SentenceBoundaryDetector
-from .espeak_fixes import remove_stress_for_espeak
+from .espeak_fixes import _ESPEAK_REGEX, remove_stress_for_espeak
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,12 +52,24 @@ def _ts() -> str:
     return datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 
-# --- ЛОГИКА УДАРЕНИЙ ---
+# --- ПРЕДКОМПИЛИРОВАННЫЕ КОНСТАНТЫ И РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ ---
 
 _STRESS_MARK = "\u0301"
 _RUSSIAN_VOWELS = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
-_RUSSIAN_VOWELS_SET = set(_RUSSIAN_VOWELS)
+_RUSSIAN_VOWELS_SET = frozenset(_RUSSIAN_VOWELS)
 _PUNCTUATION = ".,!?:[]{}<>'—–-/"
+
+# Поиск слов (букв) для быстрой проверки на омографы
+_WORDS_PATTERN = re.compile(r'\p{L}+')
+
+# Разделитель текста по пробелам и знакам пунктуации (для Silero и ручных ударений)
+_SPLIT_PATTERN = re.compile(f"([\\s{re.escape(_PUNCTUATION)}]+)")
+
+# Поиск ручного маркера ударения (+а, +е и т.д.)
+_USER_STRESS_PATTERN = re.compile(rf"\+([{_RUSSIAN_VOWELS}])")
+
+# Проверка наличия английских букв в тексте
+_LATIN_CHECK_PATTERN = re.compile(r'[a-zA-Z]')
 
 
 def _count_vowels(word: str) -> int:
@@ -70,17 +82,19 @@ def preprocess_text_for_stress(
     current_text = text
 
     if accentor and CORRECTION_WORDS:
-        # Быстрый поиск всех слов в предложении (используем регулярку \p{L} для букв)
-        words = set(re.findall(r'\p{L}+', text.lower()))
-        
-        # Если в предложении есть хотя бы один омограф из словаря
-        if words & CORRECTION_WORDS:
+        # 1. Временно «вырезаем» фразы eSpeak, чтобы они не триггерили Silero зря
+        text_without_espeak_phrases = _ESPEAK_REGEX.sub(" ", text)
+
+        # 2. Ищем слова ТОЛЬКО в оставшейся части текста
+        remaining_words = {w.lower() for w in _WORDS_PATTERN.findall(text_without_espeak_phrases)}
+
+        # 3. Silero вызовется только если в тексте есть "свободные" омографы
+        if remaining_words & CORRECTION_WORDS:
             try:
                 text_with_silero_stress = accentor(text)
-                split_pattern = f"([\\s{re.escape(_PUNCTUATION)}]+)"
 
-                original_parts = re.split(split_pattern, text)
-                stressed_parts = re.split(split_pattern, text_with_silero_stress)
+                original_parts = _SPLIT_PATTERN.split(text)
+                stressed_parts = _SPLIT_PATTERN.split(text_with_silero_stress)
 
                 if len(original_parts) == len(stressed_parts):
                     final_parts = []
@@ -99,14 +113,12 @@ def preprocess_text_for_stress(
             except Exception as e:
                 _LOGGER.debug(f"[{_ts()}] Silero error: {e}")
         else:
-            # Если омографов нет, мы просто пропускаем тяжелый вызов accentor(text)
-            _LOGGER.debug(f"[{_ts()}] [STR] Bypass")
+            # Если все омографы были внутри фраз eSpeak (или омографов вообще нет)
+            _LOGGER.debug(f"[{_ts()}] [STR] Bypass (espeak_fixes)")
 
-    # Обработка ручного маркера '+' (продолжает работать мгновенно, даже если Silero пропущен)
+    # Обработка ручного маркера '+'
     if user_marker in current_text:
-        stress_pattern = re.compile(re.escape(user_marker) + f"([{_RUSSIAN_VOWELS}])")
-        split_pattern = f"([\\s{re.escape(_PUNCTUATION)}]+)"
-        parts = re.split(split_pattern, current_text)
+        parts = _SPLIT_PATTERN.split(current_text)
         final_unicode_parts = []
 
         for part in parts:
@@ -123,7 +135,7 @@ def preprocess_text_for_stress(
                 if _count_vowels(clean_word) <= 1:
                     final_unicode_parts.append(clean_word)
                 else:
-                    processed_word = stress_pattern.sub(
+                    processed_word = _USER_STRESS_PATTERN.sub(
                         lambda m: m.group(1) if m.group(1) in "ёЁ" else m.group(1) + _STRESS_MARK, part
                     )
                     final_unicode_parts.append(processed_word)
@@ -172,7 +184,7 @@ class PiperEventHandler(AsyncEventHandler):
                 self.rus_normalizer = RussianNormalizer(use_yo=cli_args.yo)
 
         self._sentence_buffer: List[str] = []
-        self._buffer_char_limit = 110
+        self._buffer_char_limit = 25
 
     async def _flush_buffer(self, synthesize_obj: Synthesize):
         if not self._sentence_buffer:
@@ -239,7 +251,7 @@ class PiperEventHandler(AsyncEventHandler):
         log_steps = []
 
         if is_russian:
-            if self.eng_normalizer and re.search(r'[a-zA-Z]', temp_text):
+            if self.eng_normalizer and _LATIN_CHECK_PATTERN.search(temp_text):
                 transformed = self.eng_normalizer.normalize(temp_text)
                 if transformed != temp_text:
                     temp_text = transformed

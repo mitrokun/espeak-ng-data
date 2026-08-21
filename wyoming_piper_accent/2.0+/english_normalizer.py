@@ -10,6 +10,14 @@ import eng_to_ipa as ipa
 
 _LOGGER = logging.getLogger(__name__)
 
+# Предкомпилированные регулярки для пост-обработки русской фонетики
+_RE_DOUBLE_Y = re.compile(r'йй')
+_RE_SOFT_SIGN = re.compile(r'([чшщждж])ь')
+_RE_SLASHES = re.compile(r'[/]')
+
+# Поиск английских слов и сокращений с возможной точкой на конце
+_ENG_WORD_PATTERN = re.compile(r"\b(?=[0-9]*[a-zA-Z])[a-zA-Z0-9]+(?:[-'’][a-zA-Z0-9]+)*\b\.?")
+
 
 class EnglishNormalizer:
     """
@@ -32,8 +40,8 @@ class EnglishNormalizer:
         "photoshop": "фотош+оп", "SOS": "сос", "pdf": "пэдэ+эф", "raw": "р+оу",
         "docker": "д+окер", "runtime ": "рант+айм", "legacy": "л+егаси", "BDSM": "бэд+э эс+эм",
 
-        "scp": "эссип+и", "cuda": "ку́да", "ibm": "эйбиэ́м", "usb": "юэсби́",
-        "chatgpt": "чат джипити́", "gpt": "джипити", "copilot": "копа́йлот",
+        "scp": "эссип+и", "cuda": "ку́да", "ibm": "эйбиэ́м", "usb": "юэсби́", "cpp": "сипип+и",
+        "chatgpt": "чат джипити́", "gpt": "джипит+и", "copilot": "копа́йлот", "vpn": "вэпэ+эн",
         "intel": "и́нтэл", "android": "андроид", "linux": "линукс", "3d": "трид+э",
         "amd": "айэмди́", "enter": "+энта", "setup": "сет+ап", "mode": "мод",
         "pc": "пис+и", "CINEWS": "си Ньюз", "PR": "пи+ар", "HR": "эйч+ар",
@@ -67,22 +75,16 @@ class EnglishNormalizer:
     }
 
     def __init__(self):
-        self._max_ipa_key_len = max(len(key) for key in self.IPA_TO_RUSSIAN_MAP.keys())
+        # 1. Сортируем ключи по длине (убывание), чтобы длинные фонемы (eɪ, tʃ) матчились раньше одиночных (e, t)
+        sorted_keys = sorted(self.IPA_TO_RUSSIAN_MAP.keys(), key=len, reverse=True)
+        
+        # 2. Собираем регулярку вида: (eɪ|aɪ|...|p|b|t)
+        pattern_str = "|".join(re.escape(k) for k in sorted_keys)
+        self._ipa_regex = re.compile(f"({pattern_str})")
 
     def _convert_ipa_to_russian(self, ipa_text: str) -> str:
-        result, pos = "", 0
-        while pos < len(ipa_text):
-            found = False
-            for length in range(self._max_ipa_key_len, 0, -1):
-                chunk = ipa_text[pos:pos + length]
-                if chunk in self.IPA_TO_RUSSIAN_MAP:
-                    result += self.IPA_TO_RUSSIAN_MAP[chunk]
-                    pos += length
-                    found = True
-                    break
-            if not found:
-                pos += 1
-        return result
+        """Быстрая замена IPA-символов на русские звуки через скомпилированную регулярку."""
+        return self._ipa_regex.sub(lambda m: self.IPA_TO_RUSSIAN_MAP[m.group(1)], ipa_text)
 
     def _transliterate_word(self, match: Match[str]) -> str:
         raw_match = match.group(0)
@@ -94,7 +96,7 @@ class EnglishNormalizer:
         normalized_word = word_original.replace("’", "'")
         word_lower = normalized_word.lower()
 
-        # 2. Получаем транслитерацию (оригинальная логика)
+        # 2. Получаем транслитерацию
         if normalized_word in self.ENGLISH_EXCEPTIONS:
             translated = self.ENGLISH_EXCEPTIONS[normalized_word]
         elif word_lower in self.ENGLISH_EXCEPTIONS:
@@ -102,14 +104,15 @@ class EnglishNormalizer:
         else:
             try:
                 ipa_transcription = ipa.convert(word_lower)
-                ipa_transcription = re.sub(r'[/]', '', ipa_transcription).strip()
+                ipa_transcription = _RE_SLASHES.sub('', ipa_transcription).strip()
                 if '*' in ipa_transcription:
                     raise ValueError("IPA conversion failed.")
 
+                # Быстрая замена через регулярку
                 russian_phonetics = self._convert_ipa_to_russian(ipa_transcription)
-                russian_phonetics = re.sub(r'йй', 'й', russian_phonetics)
-                russian_phonetics = re.sub(r'([чшщждж])ь', r'\1', russian_phonetics)
-                _LOGGER.debug(f"Phonetic replacement: '{word_lower}' -> '{ipa_transcription}' -> '{russian_phonetics}'")
+                russian_phonetics = _RE_DOUBLE_Y.sub('й', russian_phonetics)
+                russian_phonetics = _RE_SOFT_SIGN.sub(r'\1', russian_phonetics)
+                _LOGGER.debug(f"Replacement: '{word_lower}' -> '{ipa_transcription}' -> '{russian_phonetics}'")
                 translated = russian_phonetics
             except Exception:
                 _LOGGER.debug(f"Could not get IPA for '{word_lower}'. Falling back to original word for espeak.")
@@ -125,7 +128,4 @@ class EnglishNormalizer:
 
     def normalize(self, text: str) -> str:
         """Находит в тексте английские слова, включая сокращения, и заменяет их на русское произношение."""
-
-        # Добавлено \.? в конце регулярки для захвата точки
-        pattern = r"\b(?=[0-9]*[a-zA-Z])[a-zA-Z0-9]+(?:[-'’][a-zA-Z0-9]+)*\b\.?"
-        return re.sub(pattern, self._transliterate_word, text)
+        return _ENG_WORD_PATTERN.sub(self._transliterate_word, text)
