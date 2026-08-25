@@ -98,6 +98,11 @@ class RussianNormalizer:
         self.stress_map = {}
         self.capitalized_stress_map = {}
 
+        self.no_start_capitalized_words = {
+            'со', 
+            'тому',
+        }
+
         if self.use_yo:
             self.vse_yoficator = VseYoficator()
             self.vsem_yoficator = VsemYoficator()
@@ -224,7 +229,13 @@ class RussianNormalizer:
         is_capitalized = word[0].isupper()
 
         if is_capitalized and low_word in self.capitalized_stress_map:
-            return self._restore_case(word, self.capitalized_stress_map[low_word])
+            prefix_text = match.string[:match.start()]
+            clean_prefix = prefix_text.rstrip(' \t\r\n"—–-«"\'([{')
+            is_start_of_sentence = (not clean_prefix) or clean_prefix.endswith(('.', '!', '?', '…', '\n'))
+
+            if not (is_start_of_sentence and low_word in self.no_start_capitalized_words):
+                return self._restore_case(word, self.capitalized_stress_map[low_word])
+
         if low_word in self.stress_map:
             return self._restore_case(word, self.stress_map[low_word])
         if self.use_yo and low_word in self.yo_map:

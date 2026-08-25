@@ -26,7 +26,7 @@ from wyoming.tts import (
 )
 
 from .download import VoiceNotFoundError, ensure_voice_exists, find_voice
-from .homographs import CORRECTION_WORDS
+from .homographs import get_correction_words
 from .sentence_boundary import SentenceBoundaryDetector
 from .espeak_fixes import _ESPEAK_REGEX, remove_stress_for_espeak
 
@@ -72,24 +72,23 @@ _USER_STRESS_PATTERN = re.compile(rf"\+([{_RUSSIAN_VOWELS}])")
 _LATIN_CHECK_PATTERN = re.compile(r'[a-zA-Z]')
 
 
-def _count_vowels(word: str) -> int:
-    return sum(1 for char in word if char in _RUSSIAN_VOWELS_SET)
-
-
 def preprocess_text_for_stress(
     text: str, accentor: Optional[Any], user_marker: str = "+"
 ) -> str:
     current_text = text
 
-    if accentor and CORRECTION_WORDS:
-        # 1. Временно «вырезаем» фразы eSpeak, чтобы они не триггерили Silero зря
+    correction_words = get_correction_words() if accentor else None
+
+    # --- 1. SILERO (ML) И МАСКИРОВКА ESPEAK ---
+    if accentor and correction_words:
+        # Временно маскируем фразы eSpeak, чтобы они не триггерили Silero
         text_without_espeak_phrases = _ESPEAK_REGEX.sub(" ", text)
 
-        # 2. Ищем слова ТОЛЬКО в оставшейся части текста
+        # Ищем слова ТОЛЬКО в оставшейся части текста
         remaining_words = {w.lower() for w in _WORDS_PATTERN.findall(text_without_espeak_phrases)}
 
-        # 3. Silero вызовется только если в тексте есть "свободные" омографы
-        if remaining_words & CORRECTION_WORDS:
+        # Silero вызывается только если в тексте остались "свободные" омографы
+        if remaining_words & correction_words:
             try:
                 text_with_silero_stress = accentor(text)
 
@@ -100,7 +99,7 @@ def preprocess_text_for_stress(
                     final_parts = []
                     for orig_part, stressed_part in zip(original_parts, stressed_parts):
                         clean_word = orig_part.lower().strip(_PUNCTUATION)
-                        if clean_word in CORRECTION_WORDS:
+                        if clean_word in correction_words:
                             final_parts.append(stressed_part)
                         else:
                             final_parts.append(orig_part)
@@ -112,11 +111,13 @@ def preprocess_text_for_stress(
                     )
             except Exception as e:
                 _LOGGER.debug(f"[{_ts()}] Silero error: {e}")
+
+            # Подчищаем случайные авто-ударения Silero на фразах eSpeak
+            current_text = remove_stress_for_espeak(current_text)
         else:
-            # Если все омографы были внутри фраз eSpeak (или омографов вообще нет)
             _LOGGER.debug(f"[{_ts()}] [STR] Bypass (espeak_fixes)")
 
-    # Обработка ручного маркера '+'
+    # --- 2. РАСКРЫТИЕ ПОЛЬЗОВАТЕЛЬСКОГО МАРКЕРА '+' (ВЫСШИЙ ПРИОРИТЕТ) ---
     if user_marker in current_text:
         parts = _SPLIT_PATTERN.split(current_text)
         final_unicode_parts = []
@@ -131,14 +132,10 @@ def preprocess_text_for_stress(
                 continue
 
             if user_marker in part:
-                clean_word = part.replace(user_marker, "")
-                if _count_vowels(clean_word) <= 1:
-                    final_unicode_parts.append(clean_word)
-                else:
-                    processed_word = _USER_STRESS_PATTERN.sub(
-                        lambda m: m.group(1) if m.group(1) in "ёЁ" else m.group(1) + _STRESS_MARK, part
-                    )
-                    final_unicode_parts.append(processed_word)
+                processed_word = _USER_STRESS_PATTERN.sub(
+                    lambda m: m.group(1) if m.group(1) in "ёЁ" else m.group(1) + _STRESS_MARK, part
+                )
+                final_unicode_parts.append(processed_word)
             else:
                 final_unicode_parts.append(part)
         return "".join(final_unicode_parts)
@@ -267,12 +264,6 @@ class PiperEventHandler(AsyncEventHandler):
             if transformed != temp_text:
                 temp_text = transformed
                 log_steps.append(f"[{_ts()}] [STR] {temp_text}")
-
-            # --- espeak_fixes ---
-            transformed = remove_stress_for_espeak(temp_text)
-            if transformed != temp_text:
-                temp_text = transformed
-                log_steps.append(f"[{_ts()}] [ESPEAK_FIX] {temp_text}")
 
         _LOGGER.debug(f"[{_ts()}] [RAW] {sentence}")
         for log_entry in log_steps:
