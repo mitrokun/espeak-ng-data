@@ -14,7 +14,7 @@ except ImportError:
     NUM2WORDS_AVAILABLE = False
 
 # Предкомпилированные регулярки для ускорения
-_WORDS_FIND_PATTERN = re.compile(r'[а-яёЁ]+')
+_WORDS_FIND_PATTERN = re.compile(r'[а-яА-ЯёЁ]+')
 _WORD_REPLACE_PATTERN = re.compile(r'[а-яА-ЯёЁ-]+')
 
 
