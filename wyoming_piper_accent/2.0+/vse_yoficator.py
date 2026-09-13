@@ -20,7 +20,7 @@ class VseYoficator:
         'устроено', 'обстояло', 'выходило', 'напоминало', 'выглядело', 'чувствовала', 
         'шэрится', 'отлично', 'предсказуемо', 'под', 'зря', 'хорошо', 'просто', 'сложно',
         'понятно', 'очевидно', 'известно', 'важно', 'страшно',
-        'надо', 'нужно', 'необходимо', 'должно', 'нельзя', 'пора', 'гораздо'
+        'надо', 'нужно', 'необходимо', 'должно', 'нельзя', 'пора', 'гораздо', 'так'
     }
 
     POSSESSIVE_PRONOUNS = {'ее', 'её', 'его', 'их', 'свои', 'мои', 'твои', 'наши', 'ваши'}
@@ -36,6 +36,7 @@ class VseYoficator:
         self.RE_KTO = re.compile(r'\b([Вв]се)(?=\s*,\s*кто\b)', re.IGNORECASE)
         self.RE_NUMERALS = re.compile(
             r'\b([Вв]се)(?=\s+(?:два|две|три|четыре|пять|шесть|семь|восемь|девять|десять|'
+            r'двое|трое|четверо|пятеро|шестеро|семеро|восьмеро|'
             r'вдвоем|вдвоём|втроем|втроём|вчетвером|впятером|всемером)\b)', 
             re.IGNORECASE
         )
@@ -54,7 +55,7 @@ class VseYoficator:
 
         # ФАЗА 2: Строгая защита "ВСЁ" (Ё)
         self.RE_CHTO = re.compile(
-            r'\b([Вв]се)(?=\s*,\s*(?:что|чего|чем|чему|чём|ком|(?:о|в|к|за|из-за|ради)\s+(?:что|чего|чем|чём))\b)', 
+            r'\b([Вв]се)(?=\s*,\s*(?:что|чего|чем|чему|чём|ком|(?:о|в|во|к|ко|за|на|про|до|из-за|ради|через)\s+(?:что|чего|чем|чём))\b)', 
             re.IGNORECASE
         )
 
@@ -74,8 +75,8 @@ class VseYoficator:
         
         # Интеграция концов предложений ("И это все?", "вот и все.", "прости за все")
         self.RE_END_VSE = re.compile(
-            r'\b(вот\s+и\s+|на\s+этом\s+|пока\s+|'
-            r'(?:спасибо|благодарю|прости|извини)\s+за\s+|'
+            r'\b(вот\s+и\s+|на\s+этом\s+|на\s+сегодня\s+|пока\s+|'
+            r'(?:спасибо|благодарю|прости|извини)(?:\s+(?:тебе|вам|вас|меня|нас))?\s+за\s+|'
             r'это\s+|вот\s+|и\s+|а\s+)([Вв]се)(?=\s*(?:[.!?…»"”)]|$))', 
             re.IGNORECASE
         )
@@ -93,7 +94,7 @@ class VseYoficator:
             r'про|в|во|на|за|об|о|от|до|с|со|по|к|ко|из|у|под|над|для|без|'
             r'это|то|так|там|тут|здесь|туда|сюда|оттуда|потому|поэтому|'
             r'совсем|сразу|вдруг|опять|снова|никак|уже|просто|же|очень|вполне|наконец|еще|ещё|не|ни|'
-            r'[а-яА-ЯёЁ]*(?:ю|у|ешь|ишь|ет|ит|л|ло|лся|лось)'
+            r'[а-яА-ЯёЁ]*(?:ю|у|ешь|ишь|ет|ит|л|ло|лся|лось|лась|ала|ила|ела|ула|яла|ыла)'
             r')\b)', 
             re.IGNORECASE
         )
@@ -105,7 +106,7 @@ class VseYoficator:
         )
 
         self.RE_PREV_VERB_SINGULAR = re.compile(
-            rf'\b([а-яА-ЯёЁ]+(?:ло|лось|ет|ёт|ит|ал|ял|ил|ел|ул|ла|лась|ется|ётся|ится|ть|ти|чь|ешь|ишь))'
+            rf'\b([а-яА-ЯёЁ]+(?:ло|лось|ет|ёт|ит|ал|ял|ил|ел|ул|ла|лась|ется|ётся|ится|ть|ти|чь|ешь|ишь|ано|яно|ено|ёно|уто|ыто|ито|ято|тно))'
             rf'(?:\s+(?:бы|б|он|она|оно|я|ты|совсем|сразу|вообще|абсолютно|просто|уже|еще|ещё|никак|почти|наконец|же)){{0,3}}'
             rf'\s+([Вв]се)'
             rf'(?!\s+(?!{SAFE_ADVERBS_A}\b)[а-яА-ЯёЁ]+{PLURAL_ENDINGS}\b)\b', 
@@ -121,10 +122,24 @@ class VseYoficator:
             re.IGNORECASE
         )
 
+        # Конструкции "все + наречие + слово"
+        self.RE_ADVERB_INTERMEDIATE = re.compile(
+            r'\b([Вв]се)\s+'
+            r'([а-яА-ЯёЁ]+(?:но|то|ко|го)|довольно|очень|слишком|весьма|крайне|вполне|почти|'
+            r'сразу|вдруг|быстро|постепенно|опять|снова|уже|еще|ещё|тоже|наконец|потом|не)\s+'
+            r'([а-яА-ЯёЁ-]+)',
+            re.IGNORECASE
+        )
+
         self.RE_NEXT_WORD = re.compile(r'\b([Вв]се)\s+([а-яА-ЯёЁ-]+)')
         
         self.RE_END_VERB_PLURAL = re.compile(r'(ют|ут|ят|ат|ли|ете|ите|ем|ём|им|ются|утся|ятся|атся|лись)$', re.IGNORECASE)
-        self.RE_END_VERB_SINGULAR = re.compile(r'(ет|ёт|ит|ется|ётся|ится|тся|лось|лась|ло|ла|ал|ял|ил|ел|ул|ол|ть|йти|чь|ешь|ешься|ишь|ишься)$', re.IGNORECASE)
+        self.RE_END_VERB_SINGULAR = re.compile(
+            r'(ет|ёт|ит|ется|ётся|ится|ться|лось|лась|лся|'
+            r'ну|му|ду|жу|шу|чу|щу|гу|пу|бу|ту|'
+            r'ло|ал|ял|ил|ел|ул|ол|ть|йти|чь|ешь|ешься|ишь|ишься|юсь|усь)$', 
+            re.IGNORECASE
+        )
         self.RE_END_PLURAL_NOUN = re.compile(PLURAL_ENDINGS + r'$', re.IGNORECASE)
         self.RE_END_COMPARATIVE = re.compile(r'(че|ше|ще|ее|ей)$', re.IGNORECASE)
         self.RE_END_OE = re.compile(r'(ое|ее)$', re.IGNORECASE)
@@ -192,6 +207,10 @@ class VseYoficator:
         if re.search(r'\b(это|вот)$', prefix, re.IGNORECASE):
             return f"{yo} {poss_w} {noun_w}"
 
+        # Если 3-е слово — глагол мн.ч. ("все его понимают / уважают / ждут") -> ВСЕ (Е)
+        if self.RE_END_VERB_PLURAL.search(noun_l):
+            return f"{e} {poss_w} {noun_w}"
+
         if poss_l in {'свои', 'мои', 'твои', 'наши', 'ваши'}:
             return f"{e} {poss_w} {noun_w}"
 
@@ -229,6 +248,33 @@ class VseYoficator:
 
         # По умолчанию (сон, лирика, пустые сплетни, тот, та, тоже, он, она, слова) -> Ё
         return f"{full_prefix} {yo} {next_w}"
+
+    def _fix_adverb_intermediate(self, match: re.Match) -> str:
+        vse_w, adv_w, next_w = match.group(1), match.group(2), match.group(3)
+        next_l = next_w.lower()
+        is_cap = vse_w[0].isupper()
+        yo = 'Всё__YO__' if is_cap else 'всё__YO__'
+        e = 'Все__E__' if is_cap else 'все__E__'
+
+        # 1. Предикаты из словаря -> ВСЁ (Ё)
+        if next_l in self.NEUTER_PREDICATES:
+            return f"{yo} {adv_w} {next_w}"
+
+        # 2. Глаголы множественного числа (спали, ушли, знают) -> ВСЕ (Е)
+        if self.RE_END_VERB_PLURAL.search(next_l):
+            return f"{e} {adv_w} {next_w}"
+
+        # 3. Глаголы ед.ч., возвратные на -ся и предикаты на -но/-то -> ВСЁ (Ё)
+        if (self.RE_END_VERB_SINGULAR.search(next_l) or 
+            self.RE_END_NO.search(next_l) or 
+            self.RE_END_OE.search(next_l)):
+            return f"{yo} {adv_w} {next_w}"
+
+        # 4. Существительные/прилагательные мн.ч. (дураки, люди, такие) -> ВСЕ (Е)
+        if self.RE_END_PLURAL_NOUN.search(next_l):
+            return f"{e} {adv_w} {next_w}"
+
+        return match.group(0)
 
     def _analyze_next(self, match: re.Match) -> str:
         vse_w, next_w = match.group(1), match.group(2)
@@ -286,7 +332,7 @@ class VseYoficator:
             text
         )
 
-        # ФАЗА 3: Контекстные правила
+        # ФАЗА 3: Контекстные регулярки
         text = self.RE_DUAL_IDIOMS.sub(lambda m: self._fix_dual_idioms(m, text), text)
         text = self.RE_VSE_ZHE_CONTEXT.sub(lambda m: self._fix_vse_zhe(m, text), text)
         
@@ -304,6 +350,9 @@ class VseYoficator:
             lambda m: f"{m.group(1)}{text[m.start(1)+len(m.group(1)):m.start(3)]}{'Всё__YO__' if m.group(3)[0].isupper() else 'всё__YO__'}", 
             text
         )
+
+        # Обработка конструкций через промежуточное наречие
+        text = self.RE_ADVERB_INTERMEDIATE.sub(self._fix_adverb_intermediate, text)
 
         # Поиск по зависимости от следующего слова
         text = self.RE_NEXT_WORD.sub(self._analyze_next, text)

@@ -13,9 +13,11 @@ try:
 except ImportError:
     NUM2WORDS_AVAILABLE = False
 
-# Предкомпилированные регулярки для ускорения
-_WORDS_FIND_PATTERN = re.compile(r'[а-яА-ЯёЁ]+')
-_WORD_REPLACE_PATTERN = re.compile(r'[а-яА-ЯёЁ-]+')
+# Паттерн для быстрого сторожевого фильтра (извлекает слова и части дефисных слов)
+_GUARD_WORDS_PATTERN = re.compile(r'[а-яА-ЯёЁ]+')
+
+# Паттерн для поиска и замены токенов со знаками ударения '+' и дефисами
+_WORD_REPLACE_PATTERN = re.compile(r'\+?[а-яА-ЯёЁ]+(?:[-+][а-яА-ЯёЁ]+)*')
 
 
 class VsemYoficator:
@@ -53,13 +55,37 @@ class RussianNormalizer:
     _SHARED_CAPITALIZED_STRESS_MAP = None
     _SHARED_ALL_DICT_KEYS = None
 
+    _ROMAN_MAP = {
+        'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000
+    }
+
+    _CENTURY_SUFFIX_MAP = {
+        'век':    {'ый': 'ый',  'ой': 'ой',  'ий': 'ий'},     # первый, второй, третий
+        'века':   {'ый': 'ого', 'ой': 'ого', 'ий': 'ьего'},   # третьего века
+        'веку':   {'ый': 'ому', 'ой': 'ому', 'ий': 'ьему'},   # третьему веку
+        'веком':  {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},    # третьим веком
+        'веке':   {'ый': 'ом',  'ой': 'ом',  'ий': 'ьем'},    # третьем веке
+        'веков':  {'ый': 'ого', 'ой': 'ого', 'ий': 'ьего'},   # второго — третьего веков
+        'векам':  {'ый': 'ому', 'ой': 'ому', 'ий': 'ьему'},   # второму — третьему векам
+        'веками': {'ый': 'ым',  'ой': 'ым',  'ий': 'ьим'},    # вторым — третьим веками
+        'веках':  {'ый': 'ом',  'ой': 'ом',  'ий': 'ьем'},    # втором — третьем веках
+    }
+
+    _CENTURY_PLURAL_STRESS = {
+        'века': 'века\u0301',
+        'веков': 'веко\u0301в',
+        'векам': 'века\u0301м',
+        'веками': 'века\u0301ми',
+        'веках': 'века\u0301х',
+    }
+
     _INITIALS_MAP = {
         'А': 'А\u0301', 'Б': 'Бэ', 'В': 'Вэ', 'Г': 'Гэ', 'Д': 'Дэ',
         'Е': 'Е\u0301', 'Ё': 'Ё', 'Ж': 'Же', 'З': 'Зэ', 'И': 'И\u0301',
-        'Й': 'Йот', 'К': 'Ка', 'Л': 'Эль', 'М': 'Эм', 'Н': 'Эн',
+        'Й': 'Йо', 'К': 'Ка', 'Л': 'Эл', 'М': 'Эм', 'Н': 'Эн',
         'О': 'О\u0301', 'П': 'Пэ', 'Р': 'Эр', 'С': 'Эс', 'Т': 'Тэ',
-        'У': 'У\u0301', 'Ф': 'Эф', 'Х': 'Ха', 'Ц': 'Цэ', 'Ч': 'Че',
-        'Ш': 'Шэ', 'Щ': 'Ща', 'Э': 'Э\u0301', 'Ю': 'Ю\u0301', 'Я': 'Я\u0301',
+        'У': 'У\u0301', 'Ф': 'Эф', 'Х': 'Ха', 'Ц': 'Цэ', 'Ч': 'Че\u0301',
+        'Ш': 'Шэ', 'Щ': 'Ще', 'Э': 'Э\u0301', 'Ю': 'Ю\u0301', 'Я': 'Я\u0301',
     }
 
     DAY_NOMINATIVE_MAP = {
@@ -99,8 +125,11 @@ class RussianNormalizer:
         self.capitalized_stress_map = {}
 
         self.no_start_capitalized_words = {
+            'гора', 
+            'господа', 
             'со', 
             'тому',
+            'че',
         }
 
         if self.use_yo:
@@ -115,6 +144,7 @@ class RussianNormalizer:
             'черно': 'чёрно',
             'темно': 'тёмно',
             'пестро': 'пёстро',
+            'тяжело': 'тяжёло',
             'светло': 'све́тло',
         }
         
@@ -132,6 +162,18 @@ class RussianNormalizer:
             r'(?P<suffix>-[а-яё]{1,3})?'
             r'\s+'
             r'(?P<god>год[а-яё]{0,3})\b',
+            re.IGNORECASE
+        )
+
+        # Паттерн для римских веков (одиночные и диапазоны/перечисления)
+        self.century_pattern = re.compile(
+            r'\b(?P<r1>[IVXLCDM]+)(?:-[а-яё]{1,3})?'
+            r'(?:'
+            r'\s*(?P<sep>[-–—]|и|или)\s*'
+            r'(?P<r2>[IVXLCDM]+)(?:-[а-яё]{1,3})?'
+            r')?'
+            r'\s+'
+            r'(?P<vek>век(?:а|у|ом|е|ов|ам|ами|ах)?)\b',
             re.IGNORECASE
         )
         
@@ -223,15 +265,22 @@ class RussianNormalizer:
 
     def _apply_fix_match(self, match: re.Match) -> str:
         word = match.group(0)
-        if not word: return word
-        
+        if not word:
+            return word
+
+        if '+' in word:
+            return word
+
         low_word = word.lower()
         is_capitalized = word[0].isupper()
 
         if is_capitalized and low_word in self.capitalized_stress_map:
             prefix_text = match.string[:match.start()]
-            clean_prefix = prefix_text.rstrip(' \t\r\n"—–-«"\'([{')
-            is_start_of_sentence = (not clean_prefix) or clean_prefix.endswith(('.', '!', '?', '…', '\n'))
+            clean_prefix = prefix_text.rstrip(' \t"—–-«"\'([{')
+            
+            is_start_of_sentence = (not clean_prefix) or clean_prefix.endswith(
+                ('.', '!', '?', '…', ':', ';', '\n', '\r')
+            )
 
             if not (is_start_of_sentence and low_word in self.no_start_capitalized_words):
                 return self._restore_case(word, self.capitalized_stress_map[low_word])
@@ -453,6 +502,95 @@ class RussianNormalizer:
 
         return f"{normalized_num} {god_word_raw}"
 
+    @classmethod
+    def _roman_to_int(cls, s: str) -> int | None:
+        """Перевод римского числа в int."""
+        if not s:
+            return None
+        s = s.upper()
+        total = 0
+        prev_value = 0
+        for ch in reversed(s):
+            val = cls._ROMAN_MAP.get(ch)
+            if val is None:
+                return None
+            if val < prev_value:
+                total -= val
+            else:
+                total += val
+                prev_value = val
+        return total if total > 0 else None
+
+    def _ordinal_century(self, num: int, form_rule: dict) -> str:
+        """Преобразует число в порядковое числительное с согласованным окончанием."""
+        ordinal_text = num2words(num, to='ordinal', lang='ru')
+        words = ordinal_text.split()
+        last_word = words[-1]
+
+        for base_end, new_end in form_rule.items():
+            if last_word.endswith(base_end):
+                last_word = last_word[:-len(base_end)] + new_end
+                break
+
+        words[-1] = last_word
+        return " ".join(words)
+
+    def _replace_centuries(self, match: re.Match) -> str:
+        if not NUM2WORDS_AVAILABLE:
+            return match.group(0)
+
+        r1_str = match.group('r1')
+        sep = match.group('sep')
+        r2_str = match.group('r2')
+        vek_raw = match.group('vek')
+        vek_low = vek_raw.lower()
+
+        n1 = self._roman_to_int(r1_str)
+        if n1 is None:
+            return match.group(0)
+
+        if sep and r2_str:
+            n2 = self._roman_to_int(r2_str)
+            if n2 is None:
+                return match.group(0)
+
+            # Для диапазона "II–III века" числительные в именительном падеже ("второй – третий века́")
+            if vek_low == 'века':
+                rule = {'ый': 'ый', 'ой': 'ой', 'ий': 'ий'}
+            else:
+                rule = self._CENTURY_SUFFIX_MAP.get(vek_low, self._CENTURY_SUFFIX_MAP['век'])
+
+            t1 = self._ordinal_century(n1, rule)
+            t2 = self._ordinal_century(n2, rule)
+
+            # Во множественном числе ставим ударение на окончание (века́, веко́в, века́х и т.д.)
+            stressed_vek = self._CENTURY_PLURAL_STRESS.get(vek_low)
+            vek_word = self._restore_case(vek_raw, stressed_vek) if stressed_vek else vek_raw
+
+            separator = f" {sep} " if sep in {'и', 'или'} else f" {sep} "
+            res = f"{t1}{separator}{t2} {vek_word}"
+        else:
+            rule = self._CENTURY_SUFFIX_MAP.get(vek_low, self._CENTURY_SUFFIX_MAP['век'])
+            t1 = self._ordinal_century(n1, rule)
+
+            # Для одиночных форм множественного числа (например, веко́в, века́х)
+            if vek_low in self._CENTURY_PLURAL_STRESS and vek_low != 'века':
+                vek_word = self._restore_case(vek_raw, self._CENTURY_PLURAL_STRESS[vek_low])
+            else:
+                vek_word = vek_raw
+
+            res = f"{t1} {vek_word}"
+
+        if match.group(0)[0].isupper():
+            res = res[0].upper() + res[1:]
+
+        return res
+
+    def _process_roman_centuries(self, text: str) -> str:
+        if 'век' not in text.lower():
+            return text
+        return self.century_pattern.sub(self._replace_centuries, text)
+
     def _replace_initials(self, text: str) -> str:
         pattern = re.compile(r'\b([А-ЯЁ])\.(\s*)')
         
@@ -535,17 +673,20 @@ class RussianNormalizer:
 
         # 5. Ударения (user.txt) И Ёфикация (yo.txt) с БЫСТРЫМ СТОРОЖЕВЫМ ФИЛЬТРОМ
         if self._all_dict_keys:
-            sentence_words = {w.lower() for w in _WORDS_FIND_PATTERN.findall(text)}
+            sentence_words = {w.lower() for w in _GUARD_WORDS_PATTERN.findall(text)}
             if sentence_words & self._all_dict_keys:
                 text = _WORD_REPLACE_PATTERN.sub(self._apply_fix_match, text)
 
         # 6. Обработка инициалов
         text = self._process_initials_wrapper(text)
 
-        # 7. Числовой блок
+        # 7. Римские века (II–III века, в XXI веке и т.д.)
+        text = self._process_roman_centuries(text)
+
+        # 8. Числовой блок (даты, годы, проценты, дроби)
         text = self._process_numeric_blocks(text)
 
-        # 8. Автоматическое ударение для одиночных А и О перед запятой
+        # 9. Автоматическое ударение для одиночных А и О перед запятой
         text = self._process_introductory_vowels(text)
 
         return text
